@@ -11,7 +11,7 @@ Setup
 1. pip install google-auth google-auth-oauthlib google-api-python-client
 2. Place the OAuth "credentials.json" you downloaded from Google Cloud
    Console (Desktop app client) in the same directory as this module,
-   or pass a custom path to `fetch_emails(credentials_path=...)`.
+   or pass a custom path to `get_emails(credentials_path=...)`.
 3. The first time you run this, a browser window will open for you to
    log in and grant access. A `token.json` file is then saved so you
    won't have to log in again until the token is revoked or expires.
@@ -25,11 +25,11 @@ Setup
 
 Example
 -------
-    from gmail_api_util import fetch_emails, fetch_senders, list_labels, apply_labels
+    from gmail_api_util import get_emails, get_email_senders, list_labels, apply_labels
 
     # Fetch full messages (subject, body, metadata -- no attachments),
     # cached to JSON by default so an interrupted run can resume:
-    emails = fetch_emails(max_results=5000, query="is:unread")
+    emails = get_emails(max_results=5000, query="is:unread")
     for msg in emails.values():
         print(msg.subject, "-", msg.sender)
         print(msg.body_text[:200])
@@ -39,7 +39,7 @@ Example
 
     # Fetch just sender name/email for a large batch, with the same
     # on-disk caching / resume-on-interrupt behavior:
-    senders = fetch_senders(max_results=38000, cache_path="sender_cache.json")
+    senders = get_email_senders(max_results=38000, cache_path="sender_cache.json")
     for mid, info in senders.items():
         print(info.name, "<" + info.email + ">")
 
@@ -51,26 +51,32 @@ Example
 from __future__ import annotations
 
 import base64
+import logging
 import json
 import os
 import random
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from email.header import decode_header
 from email.utils import parseaddr
+from html import unescape
 
+from bs4 import BeautifulSoup
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+logger = logging.getLogger(__name__)
+
 # gmail.modify covers everything this module does: reading messages,
 # managing labels, and applying/removing labels on messages. (gmail.labels
 # alone would cover label create/read/update/delete but NOT applying a
 # label to a message -- that call, messages.modify/batchModify, requires
 # gmail.modify.)
-SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 
 @dataclass
@@ -97,7 +103,7 @@ class EmailMessage:
     headers: dict[str, str] = field(default_factory=dict)  # every header, raw
 
     def __repr__(self) -> str:
-        return f"EmailMessage(id={self.id!r}, subject={self.subject!r}, sender={self.sender!r})"
+        return f'EmailMessage(id={self.id!r}, subject={self.subject!r}, sender={self.sender!r})'
 
 
 @dataclass
@@ -110,7 +116,7 @@ class SenderInfo:
     raw: str  # the original, unparsed "From" header
 
     def __repr__(self) -> str:
-        return f"SenderInfo(name={self.name!r}, email={self.email!r})"
+        return f'SenderInfo(name={self.name!r}, email={self.email!r})'
 
 
 @dataclass
@@ -127,48 +133,7 @@ class Label:
     background_color: str | None = None
 
     def __repr__(self) -> str:
-        return f"Label(id={self.id!r}, name={self.name!r}, type={self.type!r})"
-
-
-def get_credentials(
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
-    scopes: list[str] = SCOPES,
-) -> Credentials:
-    """
-    Load cached OAuth credentials, refreshing or requesting new ones as needed.
-
-    On first run this opens a browser window for the consent flow and
-    writes the resulting token to `token_path`. On later runs it reuses
-    (and silently refreshes) that saved token.
-    """
-    creds: Credentials | None = None
-
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, scopes)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists(credentials_path):
-                raise FileNotFoundError(
-                    f"Couldn't find '{credentials_path}'. Download it from Google Cloud "
-                    "Console (APIs & Services > Credentials > your OAuth client) and "
-                    "place it next to this script, or pass credentials_path=..."
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(credentials_path, scopes)
-            creds = flow.run_local_server(port=0)
-
-        with open(token_path, "w") as token_file:
-            token_file.write(creds.to_json())
-
-    return creds
-
-
-def build_gmail_service(creds: Credentials):
-    """Build and return an authenticated Gmail API service object."""
-    return build("gmail", "v1", credentials=creds)
+        return f'Label(id={self.id!r}, name={self.name!r}, type={self.type!r})'
 
 
 class QuotaRateLimiter:
@@ -199,29 +164,138 @@ class QuotaRateLimiter:
         self.used += units
 
 
-def _execute_with_backoff(request, max_retries: int = 6):
+def get_credentials(
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
+    scopes: list[str] = SCOPES,
+) -> Credentials:
     """
-    Execute a Gmail API request, retrying with exponential backoff on
-    rate-limit (403/429) or transient server (500/503) errors, per Google's
-    recommended retry strategy.
+    Load cached OAuth credentials, refreshing or requesting new ones as needed.
+
+    On first run this opens a browser window for the consent flow and
+    writes the resulting token to `token_path`. On later runs it reuses
+    (and silently refreshes) that saved token.
+    """
+    creds: Credentials | None = None
+
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, scopes)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(
+                    f"Couldn't find '{credentials_path}'. Download it from Google Cloud "
+                    'Console (APIs & Services > Credentials > your OAuth client) and '
+                    'place it next to this script, or pass credentials_path=...'
+                )
+            flow = InstalledAppFlow.from_client_secrets_file(credentials_path, scopes)
+            creds = flow.run_local_server(port=0)
+
+        with open(token_path, 'w') as token_file:
+            token_file.write(creds.to_json())
+
+    return creds
+
+
+def build_gmail_service(creds: Credentials):
+    """Build and return an authenticated Gmail API service object."""
+    return build('gmail', 'v1', credentials=creds)
+
+
+# 403s Google wants retried with backoff (per-second/per-user/per-project
+# quota exceeded). Other 403 reasons (e.g. "insufficientPermissions",
+# "forbidden") are permanent for the current credentials and retrying them
+# would just burn time until max_retries is exhausted, so those raise
+# immediately instead.
+_THROTTLE_403_REASONS = {
+    'rateLimitExceeded',
+    'userRateLimitExceeded',
+    'quotaExceeded',
+    'dailyLimitExceeded',
+}
+
+
+def _http_error_reason(e: HttpError) -> str | None:
+    """Pull the machine-readable `reason` code (e.g. "rateLimitExceeded")
+    out of a Gmail API error response, if present."""
+    try:
+        data = json.loads(e.content.decode('utf-8'))
+        errors = data.get('error', {}).get('errors') or []
+        if errors and errors[0].get('reason'):
+            return errors[0]['reason']
+        return data.get('error', {}).get('status')
+    except (ValueError, AttributeError, UnicodeDecodeError):
+        return None
+
+
+def _execute_with_backoff(request, max_retries: int = 10, max_backoff: float = 64.0):
+    """
+    Execute a Gmail API request, retrying with exponential backoff (capped
+    at `max_backoff` seconds, plus jitter) on throttling (403 with a
+    rate-limit/quota reason, or 429) and transient server (500/503) errors,
+    per Google's recommended retry strategy. A 403 for any other reason
+    (e.g. insufficient permissions) is not retried.
     """
     for attempt in range(max_retries):
         try:
             return request.execute()
         except HttpError as e:
-            status = getattr(e.resp, "status", None)
-            if status in (403, 429, 500, 503) and attempt < max_retries - 1:
-                time.sleep((2**attempt) + random.random())
-                continue
-            raise
+            status = getattr(e.resp, 'status', None)
+            reason = _http_error_reason(e)
+            throttled = status == 429 or (status == 403 and reason in _THROTTLE_403_REASONS)
+            transient = status in (500, 503)
+
+            if not (throttled or transient) or attempt >= max_retries - 1:
+                raise
+
+            delay = min(max_backoff, 2**attempt) + random.random()
+            if status == 403:
+                logger.warning(f'Encountered 403 Forbidden with reason "{reason}"')
+            else:
+                logger.warning(f'Encountered {status} error (reason "{reason}")')
+            time.sleep(delay)
 
 
 def _decode_body(data: str) -> str:
     """Decode Gmail's URL-safe base64 body data into text."""
     if not data:
-        return ""
-    padded = data + "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace")
+        return ''
+    padded = data + '=' * (-len(data) % 4)
+    return base64.urlsafe_b64decode(padded).decode('utf-8', errors='replace')
+
+
+# Zero-width / invisible characters some senders stuff into preheader text
+# for spacing tricks (e.g. a soft hyphen or word joiner every few
+# characters) -- harmless in HTML but garbage once rendered as plain text.
+_INVISIBLE_CHARS_RE = re.compile('[​‌‍‎‏⁠﻿\xad͏ ]')
+
+
+def _html_to_text(raw: str) -> str:
+    """
+    Convert an HTML (or HTML-ish) email body into clean, human-readable
+    plain text using BeautifulSoup: strips tags/scripts/styles, decodes
+    entities, drops invisible spacing characters, and tidies whitespace.
+
+    Some senders double-encode entities (e.g. "&amp;#847;" for what should
+    render as a single combining character) -- BeautifulSoup only unescapes
+    one level, so an extra html.unescape() pass cleans up what's left.
+    """
+    if not raw:
+        return ''
+    soup = BeautifulSoup(raw, 'lxml')
+    for tag in soup(['script', 'style', 'head', 'title']):
+        tag.decompose()
+    text = soup.get_text(separator='\n')
+    text = unescape(text)
+
+    text = _INVISIBLE_CHARS_RE.sub('', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'[ \t]*\n[ \t]*', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 def _extract_bodies(payload: dict) -> tuple[str, str | None]:
@@ -229,42 +303,54 @@ def _extract_bodies(payload: dict) -> tuple[str, str | None]:
     Walk a message payload's MIME parts and pull out text/plain and
     text/html bodies, skipping anything that looks like an attachment
     (i.e. any part with a filename, or non-text content).
+
+    The returned body_text is always plain, human-readable text: HTML tags
+    are stripped, entities (including doubly-encoded ones) are decoded, and
+    invisible spacing characters are removed. The HTML body is preferred as
+    the source when present, since it's typically the more complete/well-
+    formed of the two (some senders put broken or junk markup in what's
+    nominally the plain-text alternative); the text/plain part is used only
+    when no HTML body was sent. body_html is returned unmodified, raw
+    markup, in case a caller needs it.
     """
     text_parts: list[str] = []
     html_parts: list[str] = []
 
     def walk(part: dict) -> None:
-        mime_type = part.get("mimeType", "")
-        filename = part.get("filename", "")
-        body = part.get("body", {})
+        mime_type = part.get('mimeType', '')
+        filename = part.get('filename', '')
+        body = part.get('body', {})
 
         # Skip attachments: they carry a filename and/or an attachmentId
         # instead of inline data.
-        is_attachment = bool(filename) or "attachmentId" in body
+        is_attachment = bool(filename) or 'attachmentId' in body
 
         if not is_attachment:
-            data = body.get("data")
+            data = body.get('data')
             if data:
-                if mime_type == "text/plain":
+                if mime_type == 'text/plain':
                     text_parts.append(_decode_body(data))
-                elif mime_type == "text/html":
+                elif mime_type == 'text/html':
                     html_parts.append(_decode_body(data))
 
-        for sub_part in part.get("parts", []) or []:
+        for sub_part in part.get('parts', []) or []:
             walk(sub_part)
 
     walk(payload)
 
-    body_text = "\n".join(text_parts).strip()
-    body_html = "\n".join(html_parts).strip() if html_parts else None
+    body_html = '\n'.join(html_parts).strip() if html_parts else None
+    raw_text = '\n'.join(text_parts).strip()
+
+    body_text = _html_to_text(body_html) if body_html else _html_to_text(raw_text)
+
     return body_text, body_html
 
 
 def _header(headers: list[dict], name: str) -> str:
     for h in headers:
-        if h.get("name", "").lower() == name.lower():
-            return h.get("value", "")
-    return ""
+        if h.get('name', '').lower() == name.lower():
+            return h.get('value', '')
+    return ''
 
 
 def _decode_header_value(value: str) -> str:
@@ -275,19 +361,19 @@ def _decode_header_value(value: str) -> str:
     """
     if not value:
         return value
-    decoded = ""
+    decoded = ''
     for text, charset in decode_header(value):
         if isinstance(text, bytes):
-            decoded += text.decode(charset or "utf-8", errors="replace")
+            decoded += text.decode(charset or 'utf-8', errors='replace')
         else:
             decoded += text
     return decoded
 
 
-def _load_json_cache(cache_path: str) -> dict:
+def load_json_cache(cache_path: str) -> dict:
     """Load a JSON cache file from disk, tolerating a missing or corrupt file."""
     if os.path.exists(cache_path):
-        with open(cache_path, "r", encoding="utf-8") as f:
+        with open(cache_path, 'r', encoding='utf-8') as f:
             try:
                 return json.load(f)
             except json.JSONDecodeError:
@@ -297,54 +383,54 @@ def _load_json_cache(cache_path: str) -> dict:
     return {}
 
 
-def _save_json_cache(cache_path: str, data: dict) -> None:
+def save_json_cache(cache_path: str, data: dict) -> None:
     """
     Write a JSON cache file to disk atomically: write to a temp file, then
     rename over the real path. This means an interruption during the write
     itself can never leave a half-written, corrupt cache file behind.
     """
-    tmp_path = cache_path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
+    tmp_path = cache_path + '.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     os.replace(tmp_path, cache_path)
 
 
 def _parse_message(raw: dict) -> EmailMessage:
-    payload = raw.get("payload", {})
-    header_list = payload.get("headers", [])
+    payload = raw.get('payload', {})
+    header_list = payload.get('headers', [])
     body_text, body_html = _extract_bodies(payload)
 
     # Keep every header (Return-Path, Received, List-Unsubscribe, custom
     # X- headers, etc.) available for callers who need something beyond
     # the commonly-used fields pulled out below.
-    all_headers = {h.get("name", ""): h.get("value", "") for h in header_list}
+    all_headers = {h.get('name', ''): h.get('value', '') for h in header_list}
 
     return EmailMessage(
-        id=raw.get("id", ""),
-        thread_id=raw.get("threadId", ""),
-        subject=_header(header_list, "Subject"),
-        sender=_header(header_list, "From"),
-        to=_header(header_list, "To"),
-        cc=_header(header_list, "Cc"),
-        bcc=_header(header_list, "Bcc"),
-        reply_to=_header(header_list, "Reply-To"),
-        date=_header(header_list, "Date"),
-        message_id=_header(header_list, "Message-ID"),
-        snippet=raw.get("snippet", ""),
+        id=raw.get('id', ''),
+        thread_id=raw.get('threadId', ''),
+        subject=_header(header_list, 'Subject'),
+        sender=_header(header_list, 'From'),
+        to=_header(header_list, 'To'),
+        cc=_header(header_list, 'Cc'),
+        bcc=_header(header_list, 'Bcc'),
+        reply_to=_header(header_list, 'Reply-To'),
+        date=_header(header_list, 'Date'),
+        message_id=_header(header_list, 'Message-ID'),
+        snippet=raw.get('snippet', ''),
         body_text=body_text,
         body_html=body_html,
-        labels=raw.get("labelIds", []) or [],
+        labels=raw.get('labelIds', []) or [],
         headers=all_headers,
     )
 
 
-def fetch_emails(
+def get_emails(
     max_results: int = 1000,
     query: str | None = None,
     label_ids: list[str] | None = None,
-    cache_path: str = "email_cache.json",
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    cache_path: str = 'email_cache.json',
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
     save_every: int = 25,
 ) -> dict[str, EmailMessage]:
     """
@@ -353,7 +439,7 @@ def fetch_emails(
 
     Caches each message to a local JSON file (`cache_path`), keyed by
     message ID, and skips re-fetching any ID already in the cache -- same
-    resumable-on-interrupt behavior as fetch_senders(). Interrupt this at
+    resumable-on-interrupt behavior as get_email_senders(). Interrupt this at
     any point (Ctrl+C) and re-run the same call later to resume without
     re-spending quota on messages already saved. Progress is flushed to
     disk atomically every `save_every` new messages, and again on
@@ -377,7 +463,7 @@ def fetch_emails(
     dict[str, EmailMessage] mapping message ID -> EmailMessage, covering
     every ID in the requested range (served fresh or from cache).
     """
-    cache = _load_json_cache(cache_path)
+    cache = load_json_cache(cache_path)
     creds = get_credentials(credentials_path, token_path)
     service = build_gmail_service(creds)
     limiter = QuotaRateLimiter()
@@ -387,30 +473,30 @@ def fetch_emails(
     page_token: str | None = None
     while len(message_ids) < max_results:
         remaining = max_results - len(message_ids)
-        list_kwargs = {"userId": "me", "maxResults": min(remaining, 500)}
+        list_kwargs = {'userId': 'me', 'maxResults': min(remaining, 500)}
         if query:
-            list_kwargs["q"] = query
+            list_kwargs['q'] = query
         if label_ids:
-            list_kwargs["labelIds"] = label_ids
+            list_kwargs['labelIds'] = label_ids
         if page_token:
-            list_kwargs["pageToken"] = page_token
+            list_kwargs['pageToken'] = page_token
 
         limiter.consume(5)
         response = _execute_with_backoff(service.users().messages().list(**list_kwargs))
-        refs = response.get("messages", [])
+        refs = response.get('messages', [])
         if not refs:
             break
-        message_ids.extend(ref["id"] for ref in refs)
+        message_ids.extend(ref['id'] for ref in refs)
 
-        page_token = response.get("nextPageToken")
+        page_token = response.get('nextPageToken')
         if not page_token:
             break
 
     # 2. Fetch (format="full", 20 units/call) each message not already cached.
     to_fetch = [mid for mid in message_ids if mid not in cache]
-    print(
-        f"{len(message_ids)} messages in range, {len(cache)} already cached, "
-        f"{len(to_fetch)} left to fetch."
+    logger.info(
+        f'{len(message_ids)} messages in range, {len(cache)} already cached, '
+        f'{len(to_fetch)} left to fetch.'
     )
 
     fetched_since_save = 0
@@ -418,42 +504,42 @@ def fetch_emails(
         for i, mid in enumerate(to_fetch, start=1):
             limiter.consume(20)
             full_message = _execute_with_backoff(
-                service.users().messages().get(userId="me", id=mid, format="full")
+                service.users().messages().get(userId='me', id=mid, format='full')
             )
             email_msg = _parse_message(full_message)
             cache[mid] = asdict(email_msg)
             fetched_since_save += 1
 
             if fetched_since_save >= save_every:
-                _save_json_cache(cache_path, cache)
+                save_json_cache(cache_path, cache)
                 fetched_since_save = 0
-                print(f"  ...{i}/{len(to_fetch)} fetched, cache saved.")
+                logger.info(f'  ...{i}/{len(to_fetch)} fetched, cache saved.')
     finally:
         # Always persist whatever progress was made, including on
         # KeyboardInterrupt or an unhandled error partway through.
-        _save_json_cache(cache_path, cache)
+        save_json_cache(cache_path, cache)
 
     return {mid: EmailMessage(**cache[mid]) for mid in message_ids if mid in cache}
 
 
-def load_cached_emails(cache_path: str = "email_cache.json") -> dict[str, EmailMessage]:
+def load_cached_emails(cache_path: str = 'email_cache.json') -> dict[str, EmailMessage]:
     """
-    Load full messages previously saved by fetch_emails() straight from
+    Load full messages previously saved by get_emails() straight from
     disk, with no Gmail API calls at all. Useful for working offline with
     data already fetched, or for a quick look at cache progress while a
-    fetch_emails() run is still going in another process.
+    get_emails() run is still going in another process.
     """
-    cache = _load_json_cache(cache_path)
+    cache = load_json_cache(cache_path)
     return {mid: EmailMessage(**data) for mid, data in cache.items()}
 
 
-def fetch_senders(
+def get_email_senders(
     max_results: int = 1000,
     query: str | None = None,
     label_ids: list[str] | None = None,
-    cache_path: str = "sender_cache.json",
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    cache_path: str = 'sender_cache.json',
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
     save_every: int = 25,
 ) -> dict[str, SenderInfo]:
     """
@@ -471,7 +557,7 @@ def fetch_senders(
     ----------
     max_results  : maximum number of messages to consider (across the whole
                    cache, not just this run).
-    query        : optional Gmail search query (same syntax as fetch_emails).
+    query        : optional Gmail search query (same syntax as get_emails).
     label_ids    : optional list of label IDs to filter by, e.g. ["INBOX"].
     cache_path   : JSON file used to persist {message_id: {name, email, raw}}.
                    Reused and extended on subsequent calls.
@@ -483,7 +569,7 @@ def fetch_senders(
     dict[str, SenderInfo] mapping message ID -> SenderInfo, covering every
     ID in the requested range (whether served fresh or from cache).
     """
-    cache = _load_json_cache(cache_path)
+    cache = load_json_cache(cache_path)
     creds = get_credentials(credentials_path, token_path)
     service = build_gmail_service(creds)
     limiter = QuotaRateLimiter()
@@ -493,31 +579,31 @@ def fetch_senders(
     page_token: str | None = None
     while len(message_ids) < max_results:
         remaining = max_results - len(message_ids)
-        list_kwargs = {"userId": "me", "maxResults": min(remaining, 500)}
+        list_kwargs = {'userId': 'me', 'maxResults': min(remaining, 500)}
         if query:
-            list_kwargs["q"] = query
+            list_kwargs['q'] = query
         if label_ids:
-            list_kwargs["labelIds"] = label_ids
+            list_kwargs['labelIds'] = label_ids
         if page_token:
-            list_kwargs["pageToken"] = page_token
+            list_kwargs['pageToken'] = page_token
 
         limiter.consume(5)
         response = _execute_with_backoff(service.users().messages().list(**list_kwargs))
-        refs = response.get("messages", [])
+        refs = response.get('messages', [])
         if not refs:
             break
-        message_ids.extend(ref["id"] for ref in refs)
+        message_ids.extend(ref['id'] for ref in refs)
 
-        page_token = response.get("nextPageToken")
+        page_token = response.get('nextPageToken')
         if not page_token:
             break
 
     # 2. Fetch the sender of each message not already cached
     #    (messages.get costs 20 units/call regardless of format).
     to_fetch = [mid for mid in message_ids if mid not in cache]
-    print(
-        f"{len(message_ids)} messages in range, {len(cache)} already cached, "
-        f"{len(to_fetch)} left to fetch."
+    logger.info(
+        f'{len(message_ids)} messages in range, {len(cache)} already cached, '
+        f'{len(to_fetch)} left to fetch.'
     )
 
     fetched_since_save = 0
@@ -527,31 +613,31 @@ def fetch_senders(
             message = _execute_with_backoff(
                 service.users()
                 .messages()
-                .get(userId="me", id=mid, format="metadata", metadataHeaders=["From"])
+                .get(userId='me', id=mid, format='metadata', metadataHeaders=['From'])
             )
-            headers = message.get("payload", {}).get("headers", [])
-            raw_from = _header(headers, "From")
+            headers = message.get('payload', {}).get('headers', [])
+            raw_from = _header(headers, 'From')
             name, email_addr = parseaddr(raw_from)
             name = _decode_header_value(name) or email_addr
 
-            cache[mid] = {"name": name, "email": email_addr, "raw": raw_from}
+            cache[mid] = {'name': name, 'email': email_addr, 'raw': raw_from}
             fetched_since_save += 1
 
             if fetched_since_save >= save_every:
-                _save_json_cache(cache_path, cache)
+                save_json_cache(cache_path, cache)
                 fetched_since_save = 0
-                print(f"  ...{i}/{len(to_fetch)} fetched, cache saved.")
+                logger.info(f'  ...{i}/{len(to_fetch)} fetched, cache saved.')
     finally:
         # Always persist whatever progress was made, including on
         # KeyboardInterrupt or an unhandled error partway through.
-        _save_json_cache(cache_path, cache)
+        save_json_cache(cache_path, cache)
 
     return {
         mid: SenderInfo(
             message_id=mid,
-            name=cache[mid]["name"],
-            email=cache[mid]["email"],
-            raw=cache[mid]["raw"],
+            name=cache[mid]['name'],
+            email=cache[mid]['email'],
+            raw=cache[mid]['raw'],
         )
         for mid in message_ids
         if mid in cache
@@ -559,21 +645,21 @@ def fetch_senders(
 
 
 def _parse_label(raw: dict) -> Label:
-    color = raw.get("color", {}) or {}
+    color = raw.get('color', {}) or {}
     return Label(
-        id=raw.get("id", ""),
-        name=raw.get("name", ""),
-        type=raw.get("type", ""),
-        message_list_visibility=raw.get("messageListVisibility"),
-        label_list_visibility=raw.get("labelListVisibility"),
-        text_color=color.get("textColor"),
-        background_color=color.get("backgroundColor"),
+        id=raw.get('id', ''),
+        name=raw.get('name', ''),
+        type=raw.get('type', ''),
+        message_list_visibility=raw.get('messageListVisibility'),
+        label_list_visibility=raw.get('labelListVisibility'),
+        text_color=color.get('textColor'),
+        background_color=color.get('backgroundColor'),
     )
 
 
 def list_labels(
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> list[Label]:
     """
     List every label on the account: built-in system labels (INBOX, SENT,
@@ -582,13 +668,13 @@ def list_labels(
     """
     creds = get_credentials(credentials_path, token_path)
     service = build_gmail_service(creds)
-    response = _execute_with_backoff(service.users().labels().list(userId="me"))
-    return [_parse_label(raw) for raw in response.get("labels", [])]
+    response = _execute_with_backoff(service.users().labels().list(userId='me'))
+    return [_parse_label(raw) for raw in response.get('labels', [])]
 
 
 def get_label_map(
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> dict[str, str]:
     """
     Convenience wrapper: {label name: label id} for every label on the
@@ -600,12 +686,12 @@ def get_label_map(
 
 def create_label(
     name: str,
-    label_list_visibility: str = "labelShow",
-    message_list_visibility: str = "show",
+    label_list_visibility: str = 'labelShow',
+    message_list_visibility: str = 'show',
     text_color: str | None = None,
     background_color: str | None = None,
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> Label:
     """
     Create a new user label. `name` can use "/" to nest labels, e.g.
@@ -622,25 +708,25 @@ def create_label(
     service = build_gmail_service(creds)
 
     body: dict = {
-        "name": name,
-        "labelListVisibility": label_list_visibility,
-        "messageListVisibility": message_list_visibility,
+        'name': name,
+        'labelListVisibility': label_list_visibility,
+        'messageListVisibility': message_list_visibility,
     }
     if text_color or background_color:
-        body["color"] = {}
+        body['color'] = {}
         if text_color:
-            body["color"]["textColor"] = text_color
+            body['color']['textColor'] = text_color
         if background_color:
-            body["color"]["backgroundColor"] = background_color
+            body['color']['backgroundColor'] = background_color
 
-    raw = _execute_with_backoff(service.users().labels().create(userId="me", body=body))
+    raw = _execute_with_backoff(service.users().labels().create(userId='me', body=body))
     return _parse_label(raw)
 
 
 def get_or_create_label(
     name: str,
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
     **create_kwargs,
 ) -> Label:
     """
@@ -665,8 +751,8 @@ def update_label(
     message_list_visibility: str | None = None,
     text_color: str | None = None,
     background_color: str | None = None,
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> Label:
     """
     Update an existing user label (rename, restyle, or change visibility).
@@ -679,28 +765,28 @@ def update_label(
 
     body: dict = {}
     if name is not None:
-        body["name"] = name
+        body['name'] = name
     if label_list_visibility is not None:
-        body["labelListVisibility"] = label_list_visibility
+        body['labelListVisibility'] = label_list_visibility
     if message_list_visibility is not None:
-        body["messageListVisibility"] = message_list_visibility
+        body['messageListVisibility'] = message_list_visibility
     if text_color or background_color:
-        body["color"] = {}
+        body['color'] = {}
         if text_color:
-            body["color"]["textColor"] = text_color
+            body['color']['textColor'] = text_color
         if background_color:
-            body["color"]["backgroundColor"] = background_color
+            body['color']['backgroundColor'] = background_color
 
     raw = _execute_with_backoff(
-        service.users().labels().patch(userId="me", id=label_id, body=body)
+        service.users().labels().patch(userId='me', id=label_id, body=body)
     )
     return _parse_label(raw)
 
 
 def delete_label(
     label_id: str,
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> None:
     """
     Permanently delete a user label. Raises an HttpError (400) if label_id
@@ -708,15 +794,15 @@ def delete_label(
     """
     creds = get_credentials(credentials_path, token_path)
     service = build_gmail_service(creds)
-    _execute_with_backoff(service.users().labels().delete(userId="me", id=label_id))
+    _execute_with_backoff(service.users().labels().delete(userId='me', id=label_id))
 
 
 def apply_labels(
     message_id: str,
     add: list[str] | None = None,
     remove: list[str] | None = None,
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> list[str]:
     """
     Add and/or remove labels on a single message in one call. `add`/`remove`
@@ -729,22 +815,22 @@ def apply_labels(
 
     body: dict = {}
     if add:
-        body["addLabelIds"] = add
+        body['addLabelIds'] = add
     if remove:
-        body["removeLabelIds"] = remove
+        body['removeLabelIds'] = remove
 
     raw = _execute_with_backoff(
-        service.users().messages().modify(userId="me", id=message_id, body=body)
+        service.users().messages().modify(userId='me', id=message_id, body=body)
     )
-    return raw.get("labelIds", []) or []
+    return raw.get('labelIds', []) or []
 
 
 def batch_apply_labels(
     message_ids: list[str],
     add: list[str] | None = None,
     remove: list[str] | None = None,
-    credentials_path: str = "credentials.json",
-    token_path: str = "token.json",
+    credentials_path: str = 'credentials.json',
+    token_path: str = 'token.json',
 ) -> None:
     """
     Add and/or remove labels across up to 1,000 messages in a single
@@ -757,32 +843,30 @@ def batch_apply_labels(
     """
     if len(message_ids) > 1000:
         raise ValueError(
-            f"batchModify accepts at most 1000 message IDs per call, got {len(message_ids)}. "
-            "Split message_ids into chunks of 1000 and call this once per chunk."
+            f'batchModify accepts at most 1000 message IDs per call, got {len(message_ids)}. '
+            'Split message_ids into chunks of 1000 and call this once per chunk.'
         )
 
     creds = get_credentials(credentials_path, token_path)
     service = build_gmail_service(creds)
 
-    body: dict = {"ids": message_ids}
+    body: dict = {'ids': message_ids}
     if add:
-        body["addLabelIds"] = add
+        body['addLabelIds'] = add
     if remove:
-        body["removeLabelIds"] = remove
+        body['removeLabelIds'] = remove
 
-    _execute_with_backoff(
-        service.users().messages().batchModify(userId="me", body=body)
-    )
+    _execute_with_backoff(service.users().messages().batchModify(userId='me', body=body))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Quick manual test: fetch the 5 most recent messages in the inbox.
-    for m in fetch_emails(max_results=5, label_ids=["INBOX"]).values():
-        print("-" * 60)
-        print(f"From:    {m.sender}")
-        print(f"Subject: {m.subject}")
-        print(f"Date:    {m.date}")
-        print(f"Snippet: {m.snippet}")
+    for m in get_emails(max_results=5, label_ids=['INBOX']).values():
+        logger.info('-' * 60)
+        logger.info(f'From:    {m.sender}')
+        logger.info(f'Subject: {m.subject}')
+        logger.info(f'Date:    {m.date}')
+        logger.info(f'Snippet: {m.snippet}')
 
     # Label demo (uncomment to try):
     # label = get_or_create_label("Test Label")
