@@ -5,10 +5,13 @@ description = "A tool that uses Jev to label my emails"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "google-api-python-client>=2.200.0",
     "google-auth>=2.58.0",
     "google-auth-oauthlib>=1.4.1",
     "ipython>=9.17.1",
+    "lxml>=6.1.3",
+    "pandas>=3.0.6",
     "presidio-analyzer>=2.2.364",
     "presidio-anonymizer>=2.2.364",
     "spacy>=3.8.16",
@@ -19,7 +22,7 @@ dependencies = [
 dev = ["ipython>=9.8.0", "pytest>=9.0.2"]
 
 [project.scripts]
-jev-email-labeler = "jev_email_labeler.main:main"
+jev-email-labeler = "jev_gmail_labeler.main:entrypoint"
 
 [build-system]
 requires = ["hatchling"]
@@ -29,7 +32,7 @@ build-backend = "hatchling.build"
 path = "_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["jev-email-labeler"]
+packages = ["jev_gmail_labeler"]
 
 [tool.ruff]
 line-length = 90 # For linting (e.g., E501 rule)
