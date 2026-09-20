@@ -1,0 +1,61 @@
+[project]
+name = "jev-gmail-labeler"
+dynamic = ["version"]
+description = "A tool that uses Jev to label my emails"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google-api-python-client>=2.200.0",
+    "google-auth>=2.58.0",
+    "google-auth-oauthlib>=1.4.1",
+    "ipython>=9.17.1",
+    "presidio-analyzer>=2.2.364",
+    "presidio-anonymizer>=2.2.364",
+    "spacy>=3.8.16",
+    "typesafe-sdk>=0.6.0",
+]
+
+[dependency-groups]
+dev = ["ipython>=9.8.0", "pytest>=9.0.2"]
+
+[project.scripts]
+jev-email-labeler = "jev_email_labeler.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["jev-email-labeler"]
+
+[tool.ruff]
+line-length = 90 # For linting (e.g., E501 rule)
+# exclude = ["tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # Pyflakes
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "I",   # isort
+]
+
+[tool.ruff.lint.per-file-ignores]
+"conftest.py" = ["F403"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 70
+
+[tool.coverage.run]
+omit = ["tests/*"]
+
+[tool.uv]
+package = true
