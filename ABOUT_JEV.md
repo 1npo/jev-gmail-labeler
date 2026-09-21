@@ -1,6 +1,6 @@
 # About JEV
 
-This document is my summary of what Jev is and how it works, based on my reading of the docs and people's discussions about it on Hacker News.
+This is my summary of what Jev is and how it works, based on my reading of the docs and people's discussions about it on Hacker News.
 
 Current as of: 2026-09-20
 
