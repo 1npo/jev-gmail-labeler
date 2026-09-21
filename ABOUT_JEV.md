@@ -25,7 +25,7 @@ Jev answers with the probability (0 to 1) that the answer is:
 * Each given choice
 * Each level on the given rubric
 
-The boolean, choice, or score with the highest probability is Jev's answer to your question.
+The noul, choice, or score with the highest probability is Jev's answer to your question.
 
 You slot Jev's answers into your app's control-flow so it can make a decision about them:
 
