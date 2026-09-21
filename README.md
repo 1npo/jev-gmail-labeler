@@ -13,8 +13,9 @@ This is a work in progress. See [TODO](#todo) below.
   - [Auth](#auth)
   - [Usage](#usage)
   - [Further Documentation](#further-documentation)
-  - [TODO](#todo)
   - [LLM Use Disclosure](#llm-use-disclosure)
+  - [TODO](#todo)
+  - [LLM Use Disclosure](#llm-use-disclosure-1)
 
 ## Audience & Purpose
 
@@ -45,7 +46,7 @@ You need to run a few `jev-gmail-labeler` commands in a sequence.
 > 
 > By default these files come from and are saved to a `workspace/` folder in the current directory.
 >
-> This behavior will most likely change in the future.
+> This behavior will change in the future.
 
 1. `jev-gmail-labeler get-emails` -> `workspace/email_cache.json`
 2. `jev-gmail-labeler anonymize-emails` -> `workspace/anonymized_email_cache.json`
@@ -58,7 +59,13 @@ Save `workspace/classification_cache.json` to a CSV file (`workspace/report.csv`
 
 See [ABOUT_JEV.md](ABOUT_JEV.md) for my summary of what Jev is and how it works.
 
-Not much else besides that. See `jev-gmail-labeler <command> --help` for options you can provide for each command.
+Not much else beyond that. See `jev-gmail-labeler <command> --help` for options you can provide for each command.
+
+## LLM Use Disclosure
+
+* The `gmail_api_util.py` module was entirely vibe-coded
+* Claude helped refactor a few functions in `main.py`
+* Claude helped with some research and troubleshooting
 
 ## TODO
 
