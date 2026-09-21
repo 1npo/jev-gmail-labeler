@@ -1,5 +1,6 @@
 import argparse
 import logging
+from pathlib import Path
 
 import pandas as pd
 
@@ -142,6 +143,8 @@ def get_params() -> dict:
             save_to = getattr(namespace, 'save_to', DEFAULT_REPORT_FILE)
         case _:
             save_to = getattr(namespace, 'save_to', None)
+
+    Path(save_to).parent.mkdir(exist_ok=True, parents=True)
 
     return {
         'max_results': max_results,
