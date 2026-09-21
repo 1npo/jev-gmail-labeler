@@ -34,7 +34,7 @@ uv pip install "git+https://github.com/1npo/jev-gmail-labeler.git"
 
 ## Auth
 
-Put your TypeSafe API key the `TYPESAFE_API_KEY` environment variable.
+Put your TypeSafe API key in the `TYPESAFE_API_KEY` environment variable.
 
 ## Usage
 
