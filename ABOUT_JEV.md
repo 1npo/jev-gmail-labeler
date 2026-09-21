@@ -33,6 +33,8 @@ You slot Jev's answers into your app's control-flow so it can make decisions abo
 * Choices slot into pattern matching ("match/case") statements
 * Scores slot into threshold ladders ("if/elif/else" statements)
 
+Your app can also choose to reject answers if their probability is below a certain threshold. This is helpful in sensitive or high-risk use cases where only high probability answers can be accepted.
+
 Here's an informative demo that shows how Jev works in practice: https://docs.typesafe.ai/demos/smart-home
 
 Here are example requests and responses for each primitive:
