@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 from presidio_analyzer import AnalyzerEngine
@@ -29,6 +29,37 @@ KEEP_EMAIL_FIELDS = [
     'subject',
     'body_text',
 ]
+EMAIL_CRITERIA = {
+    'marketing': 'An advertisement, product announcement, or other marketing email',
+    'request_for_feedback': 'An email asking me to leave a review or provide feedback on a product or service',
+    'news': 'A news report or article',
+    'receipt': None,
+    'bill': 'A utility bill, eg., internet, phone, electricity, gas, etc',
+    'personal': 'A personal email between me and another individual, not an email from a company or agency',
+    'order_confirmation': 'A confirmation that I have a placed an order, eg. at an e-commerce store',
+    'subscription_confirmation': 'A confirmation that I signed up for or cancelled a subscription',
+    'order_shipped': 'A notice that a package has shipped or delivery has been scheduled',
+    'order_delivered': None,
+    'delivery_update': 'A notice that there has been a delay or other change to an in-flight delivery',
+    'bank_statement': 'An email containing a statement or transaction history from a financial institution',
+    'credit_info': 'An email from a financial instution about my credit or credit report',
+    'policy_change_notice': 'A notice from a company or agency about a change to one of their policies',
+    'info_change_notice': 'A notice from a company or agency about a change to my own information',
+    'informed_delivery': 'A daily "Informed Delivery" email from USPS',
+    'tickets': 'An acknowledgement that a ticket was opened, or someone responded to that ticket',
+    'forgot_password': None,
+    'magic_link': 'An email containing a magic sign-in link',
+    'totp': 'An email containing a time-based one-time password',
+    'new_login': 'An email indicating that my account logged in from a new device',
+    'note_to_self': 'An email that I sent to myself (including emails I send from my personal email to my work emails)',
+    'membership_renewal': None,
+    'backup': 'An email containing a daily data backup',
+    'other': None,
+    'mention': 'A notice that someone mentioned me in a chat channel',
+    'networking_activity': 'An email showing activity from a specific person on a social media website',
+    'networking_invite': 'An "friend request"-type invitation from a specific person on a social media website',
+    'data_breach': 'An email indicating that my data was found in a data leak or breach',
+}
 
 
 def generate_report(params: dict):
@@ -53,50 +84,19 @@ async def get_email_classifications(email_message: dict) -> dict:
                     instructions='Was this email sent from a government agency?'
                 ),
                 'email_type': Choice(
-                    instructions='What type of email is this?',
-                    criteria={
-                        'marketing': 'An advertisement, product announcement, or other marketing email',
-                        'request_for_feedback': 'An email asking me to leave a review or provide feedback on a product or service',
-                        'news': 'A news report or article',
-                        'receipt': None,
-                        'bill': 'A utility bill, eg., internet, phone, electricity, gas, etc',
-                        'personal': 'A personal email between me and another individual, not an email from a company or agency',
-                        'order_confirmation': 'A confirmation that I have a placed an order, eg. at an e-commerce store',
-                        'subscription_confirmation': 'A confirmation that I signed up for or cancelled a subscription',
-                        'order_shipped': 'A notice that a package has shipped or delivery has been scheduled',
-                        'order_delivered': None,
-                        'delivery_update': 'A notice that there has been a delay or other change to an in-flight delivery',
-                        'bank_statement': 'An email containing a statement or transaction history from a financial institution',
-                        'credit_info': 'An email from a financial instution about my credit or credit report',
-                        'policy_change_notice': 'A notice from a company or agency about a change to one of their policies',
-                        'info_change_notice': 'A notice from a company or agency about a change to my own information',
-                        'informed_delivery': 'A daily "Informed Delivery" email from USPS',
-                        'tickets': 'An acknowledgement that a ticket was opened, or someone responded to that ticket',
-                        'forgot_password': None,
-                        'magic_link': 'An email containing a magic sign-in link',
-                        'totp': 'An email containing a time-based one-time password',
-                        'new_login': 'An email indicating that my account logged in from a new device',
-                        'note_to_self': 'An email that I sent to myself (including emails I send from my personal email to my work emails)',
-                        'membership_renewal': None,
-                        'backup': 'An email containing a daily data backup',
-                        'other': None,
-                        'mention': 'A notice that someone mentioned me in a chat channel',
-                        'networking_activity': 'An email showing activity from a specific person on a social media website',
-                        'networking_invite': 'An "friend request"-type invitation from a specific person on a social media website',
-                        'data_breach': 'An email indicating that my data was found in a data leak or breach',
-                    },
+                    instructions='What type of email is this?', criteria=EMAIL_CRITERIA
                 ),
             },
         )
         return {
             'request_id': result.request_id,
             'elapsed_ms': result.raw_http_response.elapsed.total_seconds() * 1000,
+            'tokens_in': result.usage.input_tokens,
+            'tokens_out': result.usage.output_tokens,
             'from_government': result.nouls['from_government'].noul,
             'email_type': result.choices['email_type'].choice,
             'email_type_probabilities': result.choices['email_type'].probabilities,
             'email_type_confidence': result.choices['email_type'].confidence,
-            'tokens_in': result.usage.input_tokens,
-            'tokens_out': result.usage.output_tokens,
         }
 
 
@@ -184,6 +184,7 @@ def get_runtime(duration: timedelta) -> str:
 
 
 async def main():
+    started_at = datetime.now()
     analyzer = AnalyzerEngine(supported_languages=['en'])
     anonymizer = AnonymizerEngine()
     params = parameters.get_params()
@@ -204,6 +205,10 @@ async def main():
             generate_report(params)
         case _:
             pass
+
+    duration = datetime.now() - started_at
+    run_time = get_runtime(duration)
+    logger.info('Finished in %s', run_time)
 
 
 def entrypoint():
