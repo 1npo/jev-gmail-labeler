@@ -6,7 +6,7 @@ Current as of: 2026-09-20
 
 ## Summary
 
-Jev is a general-purpose classifier with frontier intelligence (allegedly - not proven or benchmarked yet) that is very fast and very cheap, and has a nice API.
+Jev is a general-purpose classifier with frontier intelligence (allegedly - not proven or benchmarked yet) that is very fast and very cheap, and has a nice API. Context window is unknown but speculated to be 32k.
 
 Your application sends Jev two things in each request:
 
@@ -27,7 +27,7 @@ Jev answers with the probability (0 to 1) that the answer is:
 
 The noul, choice, or score with the highest probability is Jev's answer to your question.
 
-You slot Jev's answers into your app's control-flow so it can make a decision about them:
+You slot Jev's answers into your app's control-flow so it can make decisions about them:
 
 • Nouls slot into "if" statements
 • Choices slot into pattern matching ("match/case") statements

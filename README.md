@@ -4,6 +4,22 @@ A tool that uses Jev and the GMail API to organize your emails with labels.
 
 This is a work in progress. See [TODO](#todo) below.
 
+## Content
+
+- [jev-gmail-labeler](#jev-gmail-labeler)
+  - [Content](#content)
+  - [Audience](#audience)
+  - [Installation](#installation)
+  - [Auth](#auth)
+  - [Usage](#usage)
+  - [Further Documentation](#further-documentation)
+  - [TODO](#todo)
+  - [LLM Use Disclosure](#llm-use-disclosure)
+
+## Audience
+
+This is intended primarily for personal use, so it's a little rough around the edges.
+
 ## Installation
 
 I have not published this to PyPI. Install it from this repository:
@@ -25,20 +41,9 @@ Currently each command gets its input from a JSON file and saves its output to a
 1. `jev-gmail-labeler get-emails` -> `workspace/email_cache.json`
 2. `jev-gmail-labeler anonymize-emails` -> `workspace/anonymized_email_cache.json`
 3. `jev-gmail-labeler classify-emails` -> `workspace/classification_cache.json`
+4. `jev-gmail-labeler label-emails`
 
-Save `workspace/classification_cache.json` to a CSV file by running the `report` command:
-
-```
-jev-gmail-labeler report
-```
-
-## Audience
-
-This is intended primarily for personal use, so it's a little rough around the edges.
-
-## AI Disclosure
-
-The `gmail_api_util.py` module was vibe-coded, and Claude help refactor a few functions in `main.py`.
+Save `workspace/classification_cache.json` to a CSV file by running `jev-gmail-labeler report`.
 
 ## Further Documentation
 
@@ -52,7 +57,12 @@ Not much else besides that. See `jev-gmail-labeler <command> --help` for options
   - [x] Get emails
   - [x] Manage labels
 - [x] Implement CLI
-- [x] Implement anonymization command
-- [x] Implement classification command
-- [x] Implement report command
+- [x] Implement anonymize command
+- [x] Implement classify command
 - [ ] Implement label command
+- [x] Implement report command
+
+## LLM Use Disclosure
+
+* The `gmail_api_util.py` module was vibe-coded
+* Claude help refactor a few functions in `main.py`
