@@ -12,6 +12,10 @@ I have not published this to PyPI. Install it from this repository:
 uv pip install "git+https://github.com/1npo/jev-gmail-labeler.git"
 ```
 
+## Auth
+
+Put your TypeSafe API key the `TYPESAFE_API_KEY` environment variable.
+
 ## Usage
 
 You need to run a few `jev-gmail-labeler` commands in a sequence.
