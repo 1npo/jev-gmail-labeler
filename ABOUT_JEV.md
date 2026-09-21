@@ -1,4 +1,4 @@
-# About JEV
+# About Jev
 
 This is my summary of what Jev is and how it works, based on my reading of the docs and people's discussions about it on Hacker News.
 
