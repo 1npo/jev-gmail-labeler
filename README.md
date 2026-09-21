@@ -42,7 +42,9 @@ The `gmail_api_util.py` module was vibe-coded, and Claude help refactor a few fu
 
 ## Further Documentation
 
-Not much. See `jev-gmail-labeler <command> --help` for options you can provide for each command.
+See [ABOUT_JEV.md](ABOUT_JEV.md) for my summary of what Jev is and how it works.
+
+Not much else besides that. See `jev-gmail-labeler <command> --help` for options you can provide for each command.
 
 ## TODO
 
