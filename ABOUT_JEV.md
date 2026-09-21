@@ -6,7 +6,7 @@ Current as of: 2026-09-20
 
 ## Summary
 
-Jev is a general-purpose classifier with frontier intelligence (allegedly - not proven or benchmarked yet) that is very fast and very cheap, and has a nice API. Context window is unknown but speculated to be 32k.
+Jev is a general-purpose classifier with frontier intelligence (allegedly, not proven or benchmarked yet) that is very fast and very cheap, and has a nice API. Context window is unknown but speculated to be 32k.
 
 Your application sends Jev two things in each request:
 

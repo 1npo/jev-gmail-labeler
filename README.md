@@ -8,7 +8,7 @@ This is a work in progress. See [TODO](#todo) below.
 
 - [jev-gmail-labeler](#jev-gmail-labeler)
   - [Content](#content)
-  - [Audience](#audience)
+  - [Audience \& Purpose](#audience--purpose)
   - [Installation](#installation)
   - [Auth](#auth)
   - [Usage](#usage)
@@ -16,9 +16,13 @@ This is a work in progress. See [TODO](#todo) below.
   - [TODO](#todo)
   - [LLM Use Disclosure](#llm-use-disclosure)
 
-## Audience
+## Audience & Purpose
 
 This is intended primarily for personal use, so it's a little rough around the edges.
+
+My plan is to set up a pub/sub subscriber to the GMail API in my homelab that runs `jev-gmail-labeler` whenever a new email comes in.
+
+The goal is to keep my inbox tidy and organized in near-real-time.
 
 ## Installation
 
