@@ -15,7 +15,6 @@ This is a work in progress. See [TODO](#todo) below.
   - [Further Documentation](#further-documentation)
   - [LLM Use Disclosure](#llm-use-disclosure)
   - [TODO](#todo)
-  - [LLM Use Disclosure](#llm-use-disclosure-1)
 
 ## Audience & Purpose
 
@@ -77,8 +76,3 @@ Not much else beyond that. See `jev-gmail-labeler <command> --help` for options 
 - [x] Implement classify command
 - [ ] Implement label command
 - [x] Implement report command
-
-## LLM Use Disclosure
-
-* The `gmail_api_util.py` module was vibe-coded
-* Claude help refactor a few functions in `main.py`
