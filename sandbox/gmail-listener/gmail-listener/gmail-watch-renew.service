@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew Gmail push notification watch
+
+[Service]
+Type=oneshot
+User=claude
+WorkingDirectory=/opt/gmail-listener
+EnvironmentFile=/opt/gmail-listener/.env
+ExecStart=/opt/gmail-listener/.venv/bin/python /opt/gmail-listener/renew_watch.py

@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily renewal of the Gmail push notification watch
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
