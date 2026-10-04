@@ -10,6 +10,8 @@ import sysconfig
 
 import pytest
 
+from jev_gmail_labeler.models import AnonymizedEmail, EmailMessage
+
 
 class DiskIOBlocked(AssertionError):
     """Raised when a test tries to touch the disk."""
@@ -56,3 +58,36 @@ def _block_disk_io(monkeypatch):
     for name in ('replace', 'remove', 'unlink', 'mkdir', 'makedirs', 'rename', 'chmod'):
         monkeypatch.setattr(os, name, blocked)
     monkeypatch.setattr(sqlite3, 'connect', guarded_connect)
+
+
+@pytest.fixture
+def email_message() -> EmailMessage:
+    return EmailMessage(
+        id='m1',
+        thread_id='t1',
+        history_id='100',
+        internal_date_ms=1_700_000_000_000,
+        label_ids=('INBOX', 'UNREAD'),
+        sender='Alice <alice@example.com>',
+        to='me@example.com',
+        cc='',
+        reply_to='',
+        date='Tue, 3 Oct 2026 12:00:00 +0000',
+        subject='Your receipt',
+        snippet='Thanks for your order',
+        body_text='Hello Alice, here is your receipt.',
+    )
+
+
+@pytest.fixture
+def anonymized_email() -> AnonymizedEmail:
+    return AnonymizedEmail(
+        id='m1',
+        sender='Alice <alice@example.com>',
+        to='me@example.com',
+        reply_to='',
+        date='Tue, 3 Oct 2026 12:00:00 +0000',
+        subject='Your receipt',
+        body='Hello <PERSON>, here is your receipt.',
+        body_truncated=False,
+    )
