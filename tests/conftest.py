@@ -16,8 +16,11 @@ import httplib2
 import pytest
 from googleapiclient.errors import HttpError
 
+from jev_gmail_labeler.anonymize import Anonymizer
 from jev_gmail_labeler.criteria import parse_criteria
-from jev_gmail_labeler.models import AnonymizedEmail, EmailMessage
+from jev_gmail_labeler.google_api.gmail import GmailClient
+from jev_gmail_labeler.google_api.labels import LabelManager
+from jev_gmail_labeler.models import AnonymizedEmail, ClassificationResult, EmailMessage
 
 
 class DiskIOBlocked(AssertionError):
@@ -258,3 +261,46 @@ def typesafe_client(make_jev_response) -> MagicMock:
     client = MagicMock(name='typesafe_client')
     client.system_one.return_value = make_jev_response()
     return client
+
+
+@pytest.fixture
+def make_classification():
+    def factory(
+        category='receipt', confidence=0.9, message_id='m1'
+    ) -> ClassificationResult:
+        return ClassificationResult(
+            message_id=message_id,
+            category=category,
+            confidence=confidence,
+            probabilities={category: confidence, '_none': 1 - confidence},
+            model='jev-1.13.0',
+            request_id='req-1',
+            input_tokens=1000,
+            cost_usd=0.000042,
+            elapsed_ms=50.0,
+        )
+
+    return factory
+
+
+@pytest.fixture
+def gmail_client(email_message) -> MagicMock:
+    client = MagicMock(spec=GmailClient)
+    client.get_message.return_value = email_message
+    return client
+
+
+@pytest.fixture
+def label_manager() -> MagicMock:
+    manager = MagicMock(spec=LabelManager)
+    manager.existing_ids.return_value = set()
+    manager.find_id.return_value = None
+    manager.ensure.return_value = 'L-new'
+    return manager
+
+
+@pytest.fixture
+def anonymizer(anonymized_email) -> MagicMock:
+    mock = MagicMock(spec=Anonymizer)
+    mock.anonymize.return_value = anonymized_email
+    return mock
