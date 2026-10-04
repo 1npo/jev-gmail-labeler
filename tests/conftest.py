@@ -10,6 +10,7 @@ import sysconfig
 
 import pytest
 
+from jev_gmail_labeler.criteria import parse_criteria
 from jev_gmail_labeler.models import AnonymizedEmail, EmailMessage
 
 
@@ -91,3 +92,22 @@ def anonymized_email() -> AnonymizedEmail:
         body='Hello <PERSON>, here is your receipt.',
         body_truncated=False,
     )
+
+
+@pytest.fixture
+def criteria_data() -> dict:
+    return {
+        'version': 1,
+        'min_confidence': 0.5,
+        'uncertain_label': 'Unsure',
+        'categories': [
+            {'id': 'receipt', 'description': 'A receipt for a purchase'},
+            {'id': 'news', 'description': 'A news article', 'label': 'Reading'},
+            {'id': 'personal', 'description': 'A personal email', 'label': None},
+        ],
+    }
+
+
+@pytest.fixture
+def criteria(criteria_data):
+    return parse_criteria(criteria_data)
