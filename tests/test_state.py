@@ -99,6 +99,6 @@ def test_file_path_creates_parent_dir(monkeypatch):
     connect = MagicMock(return_value=sqlite3.connect(':memory:'))
     monkeypatch.setattr(state_module.files, 'ensure_dir', ensure_dir)
     monkeypatch.setattr(state_module.sqlite3, 'connect', connect)
-    StateStore(Path('/fake/state/state.sqlite3'))
+    StateStore(Path('/fake/state/state.sqlite3')).close()
     ensure_dir.assert_called_once_with(Path('/fake/state'))
     connect.assert_called_once_with('/fake/state/state.sqlite3')
