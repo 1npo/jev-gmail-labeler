@@ -67,57 +67,196 @@ Then set `"spacy_model": "en_core_web_lg"` in your config file (see [Configure](
 
 ## 4. Set up Google Cloud
 
-You do this once. The tool needs a Google Cloud project with the Gmail and Pub/Sub APIs, an OAuth client (so it can act as you), and a Pub/Sub topic and subscription (for notifications). If you only plan to use `label` manually, you only need steps 4.1 to 4.3 and 4.7.
+This section assumes you have never used Google Cloud Platform (GCP) before. You do it once, and it takes about 30 minutes. Every step gives the click-by-click **Console** (web) route. Where a command-line equivalent exists, it also gives the `gcloud` version. You can mix the two.
 
-Pub/Sub may ask for a billing account. The volume of a personal mailbox fits well inside the free tier.
+Console menu names change now and then. If a button is not where this guide says, use the search bar at the top of the Console to find the page by name.
 
-The `gcloud` commands below assume you have run `gcloud auth login` and `gcloud config set project YOUR_PROJECT_ID`.
+### 4.1 What you are building
 
-### 4.1 Create a project and enable the APIs
+Gmail cannot call your homelab directly. Instead, the tool uses these pieces, all inside one Google Cloud **project** (a container that holds your settings, APIs and billing):
 
-**Console:** open the [Cloud Console](https://console.cloud.google.com/), create a project, then go to **APIs & Services → Library** and enable **Gmail API** and **Cloud Pub/Sub API**.
+| Piece | What it is for | Needed for |
+|---|---|---|
+| **Project** | The container for everything below | Everything |
+| **Gmail API** | Lets the tool read mail and apply labels | `label` and `listen` |
+| **OAuth consent screen** | The "this app wants access to your Gmail" page you will click through | `label` and `listen` |
+| **OAuth client** | An ID file (`credentials.json`) that lets the tool ask you for permission. It acts as you; there is no separate service account | `label` and `listen` |
+| **Cloud Pub/Sub API** | Google's message queue | `listen` only |
+| **Topic** | The mailbox Gmail drops "you have new mail" notices into | `listen` only |
+| **Subscription** | The line the service waits in to collect those notices from the topic | `listen` only |
+
+If you only plan to use `label` by hand, do 4.2, 4.3, 4.5, 4.6 and 4.10, skip billing (4.4) and enable only the Gmail API. If you want the always-on service, do everything.
+
+**Cost.** Gmail API and the consent screen are free. Pub/Sub gives the first 10 GiB of traffic per month free, and a personal mailbox sends a few kilobytes a day. You must still attach a billing account (a credit card) to the project to use Pub/Sub. As long as you stay inside the free tier you are not charged. Section 4.4 shows how to set a budget alert as a safety net.
+
+**Names you will choose.** Pick these now and use them as-is throughout. The rest of the guide assumes them:
+
+| Thing | Value used in this guide |
+|---|---|
+| Project ID | `YOUR_PROJECT_ID` (you invent it in 4.3; for example `jev-labeler-nick42`) |
+| Topic ID | `gmail-labeler` |
+| Subscription ID | `gmail-labeler-sub` |
+
+### 4.2 Optional: install the gcloud CLI
+
+Everything can be done in the web Console, so skip this if you prefer clicking. The `gcloud` command-line tool is faster and makes steps easy to repeat or verify. It is also the easiest way to confirm the setup at the end (4.11).
+
+1. Install it by following [cloud.google.com/sdk/docs/install](https://cloud.google.com/sdk/docs/install). On Debian or Ubuntu, use the apt instructions on that page. On other Linux systems, the tarball install works.
+2. Check it:
+
+   ```
+   gcloud --version
+   ```
+
+3. Sign in. This prints a URL. Open it in a browser, choose your Google account, approve, and paste the code back (or, with a browser on the same machine, it finishes by itself):
+
+   ```
+   gcloud auth login
+   ```
+
+   On a server with no browser, use `gcloud auth login --no-launch-browser` and open the URL on your laptop.
+
+Use the same Google account for `gcloud`, the Console and Gmail unless you have a reason not to. The account that creates the project becomes its **Owner**, which gives it all the rights the tool needs on Pub/Sub. The tool does not use a service account; it reaches Pub/Sub with your own login token.
+
+### 4.3 Create a project
+
+Everything lives in one project, so create a fresh one rather than reusing something else.
+
+**Console:**
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com/) and sign in. If this is your first visit, accept the terms of service. (If it offers a "free trial" with credit, you can take it, but it is not required.)
+2. Click the **project picker** at the top left of the page. It sits next to the "Google Cloud" logo and shows either a project name or "Select a project".
+3. In the dialog, click **New project**.
+4. **Project name:** `jev-gmail-labeler` (a display name, you can change it later).
+5. **Project ID:** below the name, Google suggests an ID. Click **Edit** to change it if you like. The ID must be 6 to 30 characters of lowercase letters, digits and hyphens, start with a letter, and be unique across all of Google Cloud. **You cannot change it later.** Write it down; this is your `YOUR_PROJECT_ID`.
+6. Leave **Location / Organization** as "No organization" (normal for a personal account).
+7. Click **Create**. Wait for the bell icon notification to say the project was created, then use the project picker to **select** it. The project name must show at the top of the page before you continue.
 
 **gcloud:**
 
 ```
-gcloud projects create YOUR_PROJECT_ID
+gcloud projects create YOUR_PROJECT_ID --name="jev-gmail-labeler"
 gcloud config set project YOUR_PROJECT_ID
+```
+
+If it says the ID is already taken, add some digits to it and try again. The second command makes `gcloud` use this project by default. The remaining `gcloud` commands in this guide rely on that.
+
+### 4.4 Set up billing and enable the APIs
+
+**Link a billing account** (skip if you only use `label` manually, and enable only the Gmail API below).
+
+Console:
+
+1. Open the menu (☰, top left), then **Billing**.
+2. If you have no billing account, click **Create account** (or **Link a billing account**) and follow the prompts: country, name, address and a payment card. Google may place a small temporary authorization hold on the card to verify it.
+3. Make sure the billing account is linked to your new project. Open **Billing → Account management** (or **Billing → My projects**) and check `jev-gmail-labeler` is listed. If it is not, click the three-dot menu next to it, choose **Change billing**, and pick your account.
+
+**Add a budget alert** so a mistake can never surprise you:
+
+1. **Billing → Budgets & alerts → Create budget**.
+2. Name `jev-labeler`, scope: your project, amount: for example **$5** per month.
+3. Keep the default alert thresholds (50%, 90%, 100%) and email notifications. Save.
+
+A budget only alerts you. It does not stop spending.
+
+gcloud (list your billing accounts, then link one):
+
+```
+gcloud billing accounts list
+gcloud billing projects link YOUR_PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXXXX
+```
+
+(Older `gcloud` versions need `gcloud beta billing ...`.)
+
+**Enable the APIs.** An API is off in a new project until you turn it on.
+
+Console:
+
+1. Menu → **APIs & Services → Library**.
+2. Search for **Gmail API**, click it, then click **Enable**.
+3. Go back to the Library, search for **Cloud Pub/Sub API**, click it, then **Enable**. (Skip this for manual-only use.)
+
+gcloud:
+
+```
 gcloud services enable gmail.googleapis.com pubsub.googleapis.com
 ```
 
-### 4.2 Configure the consent screen
+This can take a minute. If you get an error saying billing must be enabled, finish the billing step above first.
 
-**Console:** go to **Google Auth Platform** and complete:
+### 4.5 Configure the consent screen
 
-1. **Branding:** an app name (for example `jev-gmail-labeler`) and your email.
-2. **Audience:** choose **External** and add your own Google address as a test user.
-3. **Data Access:** click **Add or remove scopes** and add both:
-   - `https://www.googleapis.com/auth/gmail.modify`
-   - `https://www.googleapis.com/auth/pubsub`
+Before Google lets any app ask for permission, the project needs a consent screen: the page you will see when you authorize the tool. It is only ever shown to you.
 
-There is no `gcloud` command for this step.
+The Console calls this area **Google Auth Platform**. Menu → **APIs & Services → OAuth consent screen** takes you to the same place. If you see a **Get started** button, click it; the first-time setup is a four-step wizard.
 
-### 4.3 Create the OAuth client
+1. **App information.**
+   - **App name:** `jev-gmail-labeler`.
+   - **User support email:** choose your own address from the drop-down.
+   - Click **Next**.
+2. **Audience.** Choose **External**. (Internal is only offered to Google Workspace organizations, and is not available on a personal `@gmail.com` account.) Click **Next**.
+3. **Contact information.** Enter your email address. Click **Next**.
+4. **Finish.** Tick the box to agree to the Google API Services User Data Policy, click **Continue**, then **Create**.
 
-**Console:** go to **Google Auth Platform → Clients → Create client**, choose **Desktop app**, and download the JSON file. Save it as:
+Now add the permissions the tool asks for. These are called **scopes**:
 
-```
-~/.config/jev-gmail-labeler/credentials.json
-```
+1. In the left menu of Google Auth Platform, click **Data Access**.
+2. Click **Add or remove scopes**.
+3. A panel opens with a filterable table. Scroll to the bottom and find the box **Manually add scopes**, paste both of these (one per line), and click **Add to table**:
 
-```
-mkdir -p ~/.config/jev-gmail-labeler
-mv ~/Downloads/client_secret_*.json ~/.config/jev-gmail-labeler/credentials.json
-chmod 600 ~/.config/jev-gmail-labeler/credentials.json
-```
+   ```
+   https://www.googleapis.com/auth/gmail.modify
+   https://www.googleapis.com/auth/pubsub
+   ```
+
+   (You can also tick them in the table: "Gmail API … read, compose and send emails" is `gmail.modify`, and "Cloud Pub/Sub API … View and manage Pub/Sub topics and subscriptions" is `pubsub`. They only show in the table once the APIs are enabled.)
+4. Click **Update**, then **Save** at the bottom of the Data Access page.
+
+`gmail.modify` lets the tool read mail and change labels. It cannot delete mail permanently or send mail. `pubsub` lets it pull notifications. If a scope does not appear in the table, check that the API from 4.4 is enabled.
+
+Finally, add yourself as a test user (this is what makes sign-in possible until the app is published in 4.10):
+
+1. Click **Audience** in the left menu.
+2. Under **Test users**, click **Add users**, enter your Gmail address, and **Save**.
+
+There is no `gcloud` command for the consent screen.
+
+### 4.6 Create the OAuth client
+
+The OAuth client is the credential file that identifies the tool to Google.
+
+**Console:**
+
+1. In Google Auth Platform, click **Clients** in the left menu, then **Create client**. (Older path: **APIs & Services → Credentials → Create credentials → OAuth client ID**.)
+2. **Application type:** choose **Desktop app**. This is important. The other types will not work, because the tool receives the login result on a temporary `localhost` address.
+3. **Name:** `jev-gmail-labeler` (a label for you only).
+4. Click **Create**.
+5. A dialog shows a client ID and client secret. Click **Download JSON**. (You can also download it later from the Clients list: click the client's name, then the download icon.)
+6. Move the file into place and lock down its permissions. The client secret is sensitive, so keep it out of git and chat. Adjust the first command if your download went elsewhere or the file is on another computer (use `scp` to copy it to the server):
+
+   ```
+   mkdir -p ~/.config/jev-gmail-labeler
+   mv ~/Downloads/client_secret_*.json ~/.config/jev-gmail-labeler/credentials.json
+   chmod 600 ~/.config/jev-gmail-labeler/credentials.json
+   ```
+
+The file should be a small JSON document that starts with `{"installed":{"client_id": ...`. If it starts with `{"web":` you chose the wrong application type; delete that client and create a Desktop one.
 
 There is no `gcloud` command for creating a Desktop client.
 
-### 4.4 Create the topic
+### 4.7 Create the Pub/Sub topic
+
+(Skip 4.7 to 4.9 if you only use `label` manually.)
 
 The topic is the channel Gmail posts "new mail" notifications to.
 
-**Console:** **Pub/Sub → Topics → Create topic**, ID `gmail-labeler`. Untick "Add a default subscription".
+**Console:**
+
+1. Menu → **Pub/Sub → Topics**. (Search "Pub/Sub" in the top bar if you cannot find it.)
+2. Click **Create topic**.
+3. **Topic ID:** `gmail-labeler`.
+4. **Untick "Add a default subscription".** You will make your own in 4.9 with different settings.
+5. Leave the other options (schema, retention, encryption) alone and click **Create**.
 
 **gcloud:**
 
@@ -125,13 +264,20 @@ The topic is the channel Gmail posts "new mail" notifications to.
 gcloud pubsub topics create gmail-labeler
 ```
 
-The full topic name is `projects/YOUR_PROJECT_ID/topics/gmail-labeler`. You will need it in [Configure](#5-configure).
+The full topic name is `projects/YOUR_PROJECT_ID/topics/gmail-labeler`. Replace `YOUR_PROJECT_ID` with your real ID. You will need this exact string in [Configure](#5-configure). In the Console it appears at the top of the topic's page, with a copy button.
 
-### 4.5 Let Gmail publish to the topic
+### 4.8 Let Gmail publish to the topic
 
-Gmail posts notifications using a Google-owned service account, `gmail-api-push@system.gserviceaccount.com`. It must have the **Pub/Sub Publisher** role on your topic. Without this, you will get no notifications and no error.
+Gmail posts notifications from a Google-owned service account, `gmail-api-push@system.gserviceaccount.com`. It must have the **Pub/Sub Publisher** role on your topic. Without this, you will get no notifications and no error, so do not skip it.
 
-**Console:** open the topic, go to the **Permissions** tab (side panel), click **Add principal**, enter `gmail-api-push@system.gserviceaccount.com`, and choose the role **Pub/Sub Publisher**.
+**Console:**
+
+1. **Pub/Sub → Topics**, then click the topic ID `gmail-labeler` to open it.
+2. Open the **Permissions** panel. It is on the right side of the page; if it is hidden, click **Show info panel** at the top right. (On some layouts it is a **Permissions** tab instead.)
+3. Click **Add principal**.
+4. **New principals:** `gmail-api-push@system.gserviceaccount.com`. Type it in full; it will not appear in any drop-down.
+5. **Role:** open the drop-down, type `Pub/Sub Publisher`, and select it.
+6. Click **Save**. If Console warns that the principal is outside your organization or does not exist, confirm anyway; it is a real Google system account.
 
 **gcloud:**
 
@@ -141,14 +287,31 @@ gcloud pubsub topics add-iam-policy-binding gmail-labeler \
   --role=roles/pubsub.publisher
 ```
 
-### 4.6 Create the subscription
+Check it took effect:
 
-The subscription is where the service pulls notifications from. Two settings matter:
+```
+gcloud pubsub topics get-iam-policy gmail-labeler
+```
+
+The output should contain `roles/pubsub.publisher` with `serviceAccount:gmail-api-push@system.gserviceaccount.com` under `members`.
+
+### 4.9 Create the subscription
+
+The subscription is where the service collects notifications from the topic. Two settings matter:
 
 - `--ack-deadline=300` gives the service five minutes to handle a notification before Pub/Sub sends it again.
 - `--expiration-period=never` stops Google deleting the subscription. By default, a subscription with no activity for 31 days is deleted, which would silently stop the service.
 
-**Console:** **Pub/Sub → Subscriptions → Create subscription**. ID `gmail-labeler-sub`, choose the topic, delivery type **Pull**, acknowledgement deadline **300 seconds**, and under **Expiration period** choose **Never expire**.
+**Console:**
+
+1. **Pub/Sub → Subscriptions → Create subscription**.
+2. **Subscription ID:** `gmail-labeler-sub`.
+3. **Cloud Pub/Sub topic:** click the box and choose `projects/YOUR_PROJECT_ID/topics/gmail-labeler`.
+4. **Delivery type:** **Pull**. (Not Push; your homelab has no public address for Google to call.)
+5. **Message retention duration:** leave at 7 days.
+6. **Expiration period:** choose **Never expire**.
+7. **Acknowledgement deadline:** `300` seconds.
+8. Leave retry policy as the default ("Retry immediately") and leave dead lettering off. Click **Create**.
 
 **gcloud:**
 
@@ -161,15 +324,41 @@ gcloud pubsub subscriptions create gmail-labeler-sub \
 
 The full name is `projects/YOUR_PROJECT_ID/subscriptions/gmail-labeler-sub`.
 
-### 4.7 Publish the app
+### 4.10 Publish the app
 
-While the app is in **Testing** status, Google expires your login token after 7 days, and you would have to re-authorize every week. Publishing the app removes that limit. You do not need Google's verification, because you are the only user.
+While the app is in **Testing** status, Google expires your login token after 7 days, and you would have to re-authorize every week. Moving it to **In production** removes that limit. You do not need Google's verification, because you are the only user: unverified apps are allowed up to 100 users.
 
-**Console:** **Google Auth Platform → Audience → Publish app**, then confirm.
+**Console:**
 
-The first time you authorize (see [Authorize Gmail](#6-authorize-gmail)), Google shows **"Google hasn't verified this app"**. That is expected, since you wrote the app. Click **Advanced**, then **Go to *app name* (unsafe)**, and continue.
+1. **Google Auth Platform → Audience**.
+2. Under **Publishing status**, click **Publish app**.
+3. Read the dialog and click **Confirm**. The status changes to **In production**. You will not be asked to submit anything for verification.
 
-If you authorized before publishing, or before adding the `pubsub` scope, delete the old token and authorize again.
+The first time you authorize (see [Authorize Gmail](#6-authorize-gmail)), Google shows **"Google hasn't verified this app"**. That is expected, since you wrote the app. Click **Advanced**, then **Go to *app name* (unsafe)**, tick the permission boxes on the next screen (all of them), and click **Continue**.
+
+If you authorized before publishing, or before adding the `pubsub` scope, delete the old token (`rm ~/.config/jev-gmail-labeler/token.json`) and authorize again.
+
+### 4.11 Check your setup
+
+If you installed `gcloud`, these commands confirm each piece exists:
+
+```
+gcloud config get-value project
+gcloud services list --enabled | grep -E 'gmail|pubsub'
+gcloud pubsub topics describe gmail-labeler
+gcloud pubsub subscriptions describe gmail-labeler-sub
+```
+
+The subscription description should show `ackDeadlineSeconds: 300`, an empty `expirationPolicy: {}` (this means never expire), and `topic: projects/YOUR_PROJECT_ID/topics/gmail-labeler`.
+
+Then finish [Configure](#5-configure) and [Authorize Gmail](#6-authorize-gmail), and test end to end:
+
+```
+jev-gmail-labeler watch start
+jev-gmail-labeler listen --dry-run
+```
+
+Send yourself an email from another account. Within a few seconds the foreground `listen` should report it. If it does not, see the first row of [Troubleshooting](#11-troubleshooting).
 
 ## 5. Configure
 
@@ -224,7 +413,7 @@ chmod 600 ~/.config/jev-gmail-labeler/env
 
 | Key | Default | Meaning |
 |---|---|---|
-| `credentials_file` | `~/.config/jev-gmail-labeler/credentials.json` | OAuth client file from step 4.3 |
+| `credentials_file` | `~/.config/jev-gmail-labeler/credentials.json` | OAuth client file from step 4.6 |
 | `token_file` | `~/.config/jev-gmail-labeler/token.json` | Where `auth` saves your login token |
 | `criteria_file` | `~/.config/jev-gmail-labeler/criteria.json` | Your categories and labels ([section 7](#7-write-your-email-criteria)) |
 | `state_db` | `~/.local/state/jev-gmail-labeler/state.sqlite3` | The service's memory (sync position, processed emails) |
@@ -431,11 +620,11 @@ Before installing the unit, check that the setup works by running it in the fore
 jev-gmail-labeler listen --dry-run
 ```
 
-Stop it with Ctrl+C. Then install it as a systemd **user** unit. The unit file is at `deploy/systemd/jev-gmail-labeler.service` in the repository:
+Stop it with Ctrl+C. Then install it as a systemd **user** unit. The unit file is at `docs/deploy/systemd/jev-gmail-labeler.service` in the repository:
 
 ```
 mkdir -p ~/.config/systemd/user
-curl -fsSL https://raw.githubusercontent.com/1npo/jev-gmail-labeler/main/deploy/systemd/jev-gmail-labeler.service \
+curl -fsSL https://raw.githubusercontent.com/1npo/jev-gmail-labeler/main/docs/deploy/systemd/jev-gmail-labeler.service \
   -o ~/.config/systemd/user/jev-gmail-labeler.service
 systemctl --user daemon-reload
 systemctl --user enable --now jev-gmail-labeler
@@ -493,11 +682,11 @@ systemctl --user restart jev-gmail-labeler
 
 | Problem | Likely cause and fix |
 |---|---|
-| No notifications arrive | `gmail-api-push@system.gserviceaccount.com` is missing the Publisher role **on the topic** ([4.5](#45-let-gmail-publish-to-the-topic)), or `pubsub_topic` does not match the topic you granted. Run `watch status` to see whether a watch is active |
-| `invalid_grant` about once a week | The OAuth app is still in Testing status, so the token expires after 7 days. Publish it ([4.7](#47-publish-the-app)), delete the token and run `auth` |
+| No notifications arrive | `gmail-api-push@system.gserviceaccount.com` is missing the Publisher role **on the topic** ([4.8](#48-let-gmail-publish-to-the-topic)), or `pubsub_topic` does not match the topic you granted. Run `watch status` to see whether a watch is active |
+| `invalid_grant` about once a week | The OAuth app is still in Testing status, so the token expires after 7 days. Publish it ([4.10](#410-publish-the-app)), delete the token and run `auth` |
 | Log says `Authorization failed ... Run jev-gmail-labeler auth` (exit 3) | Token missing, revoked, or missing the `pubsub` scope. Delete `token.json` and run `auth` again |
 | Log says the TypeSafe API key was rejected (exit 3) | Wrong or revoked key. Check `TYPESAFE_API_KEY` or `typesafe_api_key_file` with `config show` |
-| Service stopped working after a month of idleness | The subscription was deleted. Recreate it with `--expiration-period=never` ([4.6](#46-create-the-subscription)) |
+| Service stopped working after a month of idleness | The subscription was deleted. Recreate it with `--expiration-period=never` ([4.9](#49-create-the-subscription)) |
 | `Cannot read subscription ...` | Wrong `pubsub_subscription`, or the signed-in account lacks access to it |
 | `spaCy model 'en_core_web_md' is not installed` | Reinstall with `uv tool install --reinstall git+https://github.com/1npo/jev-gmail-labeler.git`. If you set `spacy_model` to another model, install it as shown in [section 3](#use-the-larger-language-model) |
 | Many `429` or rate-limit messages | Too many Gmail calls at once. Lower `gmail_quota_units_per_minute`; temporary errors are retried automatically |
