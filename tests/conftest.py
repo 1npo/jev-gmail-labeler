@@ -9,6 +9,7 @@ import site
 import sqlite3
 import sys
 import sysconfig
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import httplib2
@@ -230,3 +231,30 @@ def make_http_error():
         return HttpError(httplib2.Response({'status': status}), body)
 
     return factory
+
+
+@pytest.fixture
+def make_jev_response():
+    def factory(
+        choice='receipt', confidence=0.9, input_tokens=1000, probabilities=None
+    ) -> SimpleNamespace:
+        probs = probabilities or {choice: confidence, '_none': round(1 - confidence, 6)}
+        return SimpleNamespace(
+            model='jev-1.13.0',
+            request_id='req-1',
+            usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=1),
+            choices={
+                'category': SimpleNamespace(
+                    choice=choice, confidence=confidence, probabilities=probs
+                )
+            },
+        )
+
+    return factory
+
+
+@pytest.fixture
+def typesafe_client(make_jev_response) -> MagicMock:
+    client = MagicMock(name='typesafe_client')
+    client.system_one.return_value = make_jev_response()
+    return client
