@@ -39,6 +39,7 @@ allow-direct-references = true
 line-length = 90 # For linting (e.g., E501 rule)
 src = ["src", "tests"]
 extend-exclude = ["sandbox"]  # legacy prototype, removed in a later session
+include = ["*.py", "*.pyi", "**/pyproject.toml"]  # skip Markdown, which ruff can also format
 
 [tool.ruff.lint]
 select = [
