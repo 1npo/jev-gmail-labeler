@@ -34,33 +34,44 @@ def test_example_parses():
         'An email from a financial ins'
     )
     assert 'friend request' in c.category('networking_invite').description
-    assert c.category('order_shipped').label_name == 'Jev/Order Shipped'
+    assert c.category('order_shipped').label_name == 'order_shipped'
 
 
 def test_parse_minimal_defaults():
     c = parse_criteria({'version': 1, 'categories': [{'id': 'a'}]})
     assert c.instructions == crit.DEFAULT_INSTRUCTIONS
-    assert c.label_prefix == 'Jev'
+    assert c.label_prefix == ''
     assert c.min_confidence == 0.0
     assert c.uncertain_label is None
     assert c.no_match_label is None
     assert c.categories[0].description is None
-    assert c.categories[0].label_name == 'Jev/A'
+    assert c.categories[0].label_name == 'a'
 
 
 def test_parse_fixture(criteria):
     assert criteria.min_confidence == 0.5
     assert criteria.uncertain_label == 'Jev/Unsure'
     assert [c.label_name for c in criteria.categories] == [
-        'Jev/Receipt',
+        'Jev/receipt',
         'Jev/Reading',
         None,
     ]
 
 
-def test_derived_label_title_cases():
+def test_derived_label_is_category_id():
     c = parse_criteria({'version': 1, 'categories': [{'id': 'order_shipped'}]})
-    assert c.categories[0].label_name == 'Jev/Order Shipped'
+    assert c.categories[0].label_name == 'order_shipped'
+
+
+def test_derived_label_uses_explicit_prefix():
+    c = parse_criteria(
+        {
+            'version': 1,
+            'label_prefix': 'Jev',
+            'categories': [{'id': 'receipt'}],
+        }
+    )
+    assert c.categories[0].label_name == 'Jev/receipt'
 
 
 def test_prefix_empty_means_no_prefix():
@@ -105,7 +116,7 @@ def test_category_lookup(criteria):
 def test_managed_label_names(criteria_data):
     data = with_(criteria_data, no_match_label='Other')
     assert parse_criteria(data).managed_label_names() == {
-        'Jev/Receipt',
+        'Jev/receipt',
         'Jev/Reading',
         'Jev/Unsure',
         'Jev/Other',
@@ -117,7 +128,7 @@ def test_shared_labels_allowed():
         'version': 1,
         'categories': [{'id': 'a', 'label': 'S'}, {'id': 'b', 'label': 'S'}],
     }
-    assert parse_criteria(data).managed_label_names() == {'Jev/S'}
+    assert parse_criteria(data).managed_label_names() == {'S'}
 
 
 def test_root_not_object():
@@ -203,7 +214,7 @@ def test_system_labels_rejected_without_prefix(criteria_data, name):
 
 def test_system_label_derived_from_id_without_prefix():
     errs = errors_of({'version': 1, 'label_prefix': '', 'categories': [{'id': 'inbox'}]})
-    assert errs == ['categories[0].label: "Inbox" is reserved by Gmail']
+    assert errs == ['categories[0].label: "inbox" is reserved by Gmail']
 
 
 def test_categories_required_type_and_size(criteria_data):

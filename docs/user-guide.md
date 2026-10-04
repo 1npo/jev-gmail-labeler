@@ -502,7 +502,7 @@ jev-gmail-labeler criteria validate
 }
 ```
 
-This produces the labels `Jev/Receipt`, `Jev/Shipping`, `Jev/Magic Link` and `Jev/Unsure`. Personal mail is classified but left without a label.
+This produces the labels `Jev/receipt`, `Jev/Shipping`, `Jev/magic_link` and `Jev/Unsure`. Personal mail is classified but left without a label.
 
 ### Fields
 
@@ -512,20 +512,20 @@ Unknown keys are errors.
 |---|---|---|---|
 | `version` | yes | | Must be `1` |
 | `instructions` | no | A built-in question | Text asking Jev to pick the best category. Not empty |
-| `label_prefix` | no | `"Jev"` | Prepended as `<prefix>/<label>`. `""` means no prefix. No leading or trailing `/` or spaces |
+| `label_prefix` | no | `""` | Prepended as `<prefix>/<label>`. Empty or absent means no prefix. No leading or trailing `/` or spaces |
 | `min_confidence` | no | `0.0` | A number from 0 to 1. Answers below it get the `uncertain_label` |
 | `uncertain_label` | no | none | Label for low-confidence answers. None means no label |
 | `no_match_label` | no | none | Label when Jev says no category fits. None means no label |
 | `categories` | yes | | 1 to 254 categories |
 | `categories[].id` | yes | | Lowercase letters, digits and `_`, starting with a letter, up to 64 characters. Unique |
 | `categories[].description` | no | none | Tells Jev what the category means: text, or a JSON object or list. Sent as is |
-| `categories[].label` | no | made from `id` | Absent: `order_shipped` becomes `Order Shipped`. `null`: classify but never label |
+| `categories[].label` | no | the `id` | Absent: the label is the `id` itself, eg `order_shipped`. `null`: classify but never label |
 
 Label rules: each label is 1 to 200 characters, has no `//`, and does not start or end with `/` or a space. Several categories may share a label. A full label name may not be a Gmail system label (`INBOX`, `SENT`, `DRAFT`, `SPAM`, `TRASH`, `UNREAD`, `STARRED`, `IMPORTANT`, `CHAT`) or start with `CATEGORY_`.
 
 ### How labels are applied
 
-- Labels are created in Gmail the first time they are needed, along with any parent label (`Jev` for `Jev/Receipt`). Matching ignores upper and lower case.
+- Labels are created in Gmail the first time they are needed, along with any parent label (`Jev` for `Jev/receipt`, if `label_prefix` is `Jev`). Matching ignores upper and lower case.
 - Jev always has one extra hidden option, `_none` ("None of the other categories fit this email"). If it wins, the email gets `no_match_label` (or no label if that is unset).
 - If Jev's best answer has confidence below `min_confidence`, the email gets `uncertain_label` instead.
 - Otherwise the email gets the label of the winning category.
@@ -585,7 +585,7 @@ JSON output is a list with one object per email. A shortened example:
     "input_tokens": 412,
     "cost_usd": 0.0000173
   },
-  "decision": {"category": "receipt", "reason": "matched", "label_name": "Jev/Receipt"},
+  "decision": {"category": "receipt", "reason": "matched", "label_name": "receipt"},
   "applied": false,
   "error": null
 }

@@ -340,7 +340,7 @@ def test_criteria_validate(monkeypatch, criteria, capsys):
     assert load.call_args.args[0] == Path('/c.json')
     assert capsys.readouterr().out.splitlines() == [
         'OK: 3 categories',
-        'receipt -> Jev/Receipt',
+        'receipt -> Jev/receipt',
         'news -> Jev/Reading',
         'personal -> (no label)',
     ]

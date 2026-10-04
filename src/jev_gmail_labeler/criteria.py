@@ -115,10 +115,6 @@ def _check_label(
     return full
 
 
-def _derive_label(category_id: str) -> str:
-    return ' '.join(part.capitalize() for part in category_id.split('_') if part)
-
-
 def _parse_category(
     raw: Any, index: int, prefix: str | None, seen: set[str], errors: list[str]
 ) -> Category | None:
@@ -148,9 +144,7 @@ def _parse_category(
     label_name = None
     if 'label' not in raw:
         if isinstance(category_id, str) and ID_RE.match(category_id):
-            label_name = _check_label(
-                _derive_label(category_id), f'{path}.label', prefix, errors
-            )
+            label_name = _check_label(category_id, f'{path}.label', prefix, errors)
     elif raw['label'] is not None:
         label_name = _check_label(raw['label'], f'{path}.label', prefix, errors)
 
@@ -175,7 +169,7 @@ def parse_criteria(data: Any, *, source: str = '<criteria>') -> Criteria:
     if not isinstance(instructions, str) or not instructions.strip():
         errors.append('instructions: must be a non-empty string')
 
-    prefix: str | None = data.get('label_prefix', 'Jev')
+    prefix: str | None = data.get('label_prefix', '')
     if not isinstance(prefix, str):
         errors.append('label_prefix: must be a string')
         prefix = None
@@ -237,7 +231,6 @@ def load_criteria(path: Path) -> Criteria:
 
 EXAMPLE_CRITERIA: dict[str, Any] = {
     'version': 1,
-    'label_prefix': 'Jev',
     'min_confidence': 0.0,
     'categories': [
         {

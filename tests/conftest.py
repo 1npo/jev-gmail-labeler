@@ -111,6 +111,7 @@ def anonymized_email() -> AnonymizedEmail:
 def criteria_data() -> dict:
     return {
         'version': 1,
+        'label_prefix': 'Jev',
         'min_confidence': 0.5,
         'uncertain_label': 'Unsure',
         'categories': [

@@ -39,7 +39,7 @@ This plan is executed by **3 sessions**, run in order. Each session reads this w
 | D12 | Config precedence, lowest to highest: built-in defaults < env vars `JEV_LABELER_*` < config file < `--config-json` < individual CLI flags. |
 | D13 | The TypeSafe API key never appears in config JSON or CLI flags. It comes from `typesafe_api_key_file` (if set) or else env `TYPESAFE_API_KEY`. |
 | D14 | Default paths come from `platformdirs`. Config dir is `user_config_path('jev-gmail-labeler')` (Linux: `~/.config/jev-gmail-labeler`). State dir is `user_state_path('jev-gmail-labeler')` (Linux: `~/.local/state/jev-gmail-labeler`). |
-| D15 | Gmail labels are named `<label_prefix>/<label>` (default prefix `Jev`). They are created lazily, the first time they are applied, along with any missing parent labels. Label lookup is case-insensitive. |
+| D15 | Gmail labels are named `<label_prefix>/<label>` (default: no prefix; a category without a `label` uses its id). They are created lazily, the first time they are applied, along with any missing parent labels. Label lookup is case-insensitive. |
 | D16 | The CLI entry point is `jev-gmail-labeler` (the PoC's `jev-email-labeler` was a typo). The version is bumped to `0.2.0`. |
 | D17 | The old top-level package, `main.py` and `_version.py` are deleted in S1. The old code remains in git history. |
 | D18 | Gmail retries use googleapiclient's built-in `request.execute(num_retries=5)`. It retries 429, 5xx, rate-limit 403s and socket errors with exponential backoff. A token-bucket `QuotaLimiter` (default 5000 units/min, under Google's 6000/min per-user limit) paces calls. |
@@ -192,7 +192,7 @@ def ensure_dir(path: Path, mode: int = 0o700) -> None   # path.mkdir(parents=Tru
 |---|---|---|---|---|
 | `version` | int | yes | — | must be `1` |
 | `instructions` | string | no | `DEFAULT_INSTRUCTIONS` | non-empty |
-| `label_prefix` | string | no | `"Jev"` | `""` allowed (no prefix); no leading/trailing `/` or whitespace |
+| `label_prefix` | string | no | `""` | `""` allowed (no prefix); no leading/trailing `/` or whitespace |
 | `min_confidence` | number | no | `0.0` | 0 ≤ x ≤ 1 |
 | `uncertain_label` | string \| null | no | null | label used when confidence < `min_confidence` |
 | `no_match_label` | string \| null | no | null | label used when Jev picks `_none` |

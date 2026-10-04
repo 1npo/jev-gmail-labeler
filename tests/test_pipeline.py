@@ -140,9 +140,9 @@ def test_dry_run_would_label_and_never_creates(pipeline, label_manager, gmail_cl
     assert r.status is PipelineStatus.WOULD_LABEL
     assert r.applied is False
     assert r.label_id == 'L-existing'
-    assert r.decision.label_name == 'Jev/Receipt'
+    assert r.decision.label_name == 'Jev/receipt'
     assert r.classification.category == 'receipt'
-    label_manager.find_id.assert_called_once_with('Jev/Receipt')
+    label_manager.find_id.assert_called_once_with('Jev/receipt')
     label_manager.ensure.assert_not_called()
     gmail_client.modify_labels.assert_not_called()
 
@@ -165,7 +165,7 @@ def test_apply_ensures_and_modifies(pipeline, label_manager, gmail_client, anony
         'Tue, 3 Oct 2026 12:00:00 +0000',
         'Alice <alice@example.com>',
     )
-    label_manager.ensure.assert_called_once_with('Jev/Receipt')
+    label_manager.ensure.assert_called_once_with('Jev/receipt')
     gmail_client.modify_labels.assert_called_once_with('m1', add=['L-new'], remove=[])
     assert anonymizer.anonymize.call_args.kwargs == {'max_body_chars': 1234}
 
@@ -333,7 +333,7 @@ def test_logs_one_info_line_and_subject_only_at_debug(pipeline, caplog):
     info = [r for r in caplog.records if r.levelno == logging.INFO]
     debug = [r for r in caplog.records if r.levelno == logging.DEBUG]
     assert [r.getMessage() for r in info] == [
-        'm1 labelled category=receipt label=Jev/Receipt confidence=0.90'
+        'm1 labelled category=receipt label=Jev/receipt confidence=0.90'
     ]
     assert 'Your receipt' not in info[0].getMessage()
     assert any('Your receipt' in r.getMessage() for r in debug)
