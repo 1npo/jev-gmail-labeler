@@ -20,6 +20,7 @@ from jev_gmail_labeler.anonymize import Anonymizer
 from jev_gmail_labeler.criteria import parse_criteria
 from jev_gmail_labeler.google_api.gmail import GmailClient
 from jev_gmail_labeler.google_api.labels import LabelManager
+from jev_gmail_labeler.google_api.pubsub import PulledMessage
 from jev_gmail_labeler.models import AnonymizedEmail, ClassificationResult, EmailMessage
 from jev_gmail_labeler.state import StateStore
 
@@ -312,3 +313,12 @@ def memory_state(fake_clock):
     store = StateStore(':memory:', clock=fake_clock.time)
     yield store
     store.close()
+
+
+@pytest.fixture
+def make_pulled():
+    def factory(history_id, email='me@example.com', ack_id='a1') -> PulledMessage:
+        data = json.dumps({'emailAddress': email, 'historyId': history_id}).encode()
+        return PulledMessage(ack_id=ack_id, data=data, message_id=f'pm-{ack_id}')
+
+    return factory
