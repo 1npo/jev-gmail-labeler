@@ -9,13 +9,9 @@ This plan is executed by **3 sessions**, run in order. Each session reads this w
 ## 0. Ground rules (all sessions)
 
 1. **Never open, print, copy, or quote anything inside `workspace/`**, `token.json`, `credentials.json`, or any `*.sqlite3` file. They hold secrets and personal email. `workspace/` stays in `.gitignore` (`workspace/**`, `token.json`, `credentials.json` lines must remain).
-2. **Never touch `.venv/`.** It is the user's Linux virtualenv on a shared drive. On Windows, point uv elsewhere for every uv command:
-   - PowerShell: `$env:UV_PROJECT_ENVIRONMENT = "$env:LOCALAPPDATA\jev-gmail-labeler\venv"`
-   - Git Bash: `export UV_PROJECT_ENVIRONMENT="$LOCALAPPDATA/jev-gmail-labeler/venv"`
-   - On Linux, the normal `.venv` is fine.
+2. **Environment.** Sessions run with the `claude` CLI on the Linux host `diatom`, from the repo root. Use the project's `.venv` through `uv` (`uv sync`, `uv run ...`). Never delete or recreate `.venv` by hand.
 3. **Preflight** (start of each session):
-   - Run `git status`. If git reports "dubious ownership", stop and ask the user to run `git config --global --add safe.directory '%(prefix)///diatom/nick/dev/sandbox/jev-gmail-labeler'`. Do not change the global config yourself.
-   - On Windows, pass `-c core.filemode=false` to every git command; the network share reports false mode changes.
+   - Run `git status`. If git reports "dubious ownership" or another permission problem, stop and ask the user to fix it. Do not change the global git config yourself.
    - `git config user.email` must be set. If it isn't, stop and ask the user. Don't set an identity yourself.
    - The working tree must be clean and on `main`. If it isn't, stop and ask the user. Don't commit, stash or discard their changes.
    - Run `uv --version`. If a later `uv lock` or `uv sync` fails because of the lockfile version, stop and ask the user to run `uv self update`.
@@ -888,14 +884,18 @@ def _block_disk_io(monkeypatch):
    - Create the topic: `gcloud pubsub topics create gmail-labeler`.
    - Grant Gmail publish rights: `gcloud pubsub topics add-iam-policy-binding gmail-labeler --member=serviceAccount:gmail-api-push@system.gserviceaccount.com --role=roles/pubsub.publisher`.
    - Create the subscription: `gcloud pubsub subscriptions create gmail-labeler-sub --topic=gmail-labeler --ack-deadline=300 --expiration-period=never`.
-   - Publishing status: in Testing, the token expires every 7 days. Publishing to production avoids this, but shows an "unverified app" warning once.
+   - **Publish the app.** Google Auth Platform → Audience → Publish app. Explain why: in Testing, the token expires every 7 days. Explain what the user will see: the one-time "Google hasn't verified this app" screen, and how to continue past it (Advanced → Go to *app name*).
+   - Each of these must be its own clearly titled step with both Console and `gcloud` instructions:
+     - granting the topic Publisher role to `gmail-api-push@system.gserviceaccount.com`
+     - creating the subscription with `--expiration-period=never` (and why: by default, unused subscriptions are deleted after 31 days)
+     - adding the `pubsub` scope
 5. **Configure.** Cover:
    - `config.json` with a full example.
    - The `env` file with the API key (`chmod 600`).
    - The precedence list (D12).
    - The full config reference table (§5.1).
    - `config show`.
-6. **Authorize Gmail.** Run `jev-gmail-labeler auth`. On a headless server: `ssh -L 8765:localhost:8765 server`, then `jev-gmail-labeler auth --no-browser --port 8765` and open the printed URL on your laptop.
+6. **Authorize Gmail.** Run `jev-gmail-labeler auth`. If you authorized before publishing the app or adding the `pubsub` scope, delete the old token and run `auth` again. On a headless server: `ssh -L 8765:localhost:8765 server`, then `jev-gmail-labeler auth --no-browser --port 8765` and open the printed URL on your laptop.
 7. **Write your email criteria.** The schema table (§4.1), the example (§4.2), and how labels are named and created. Explain what happens on no match or low confidence, and how to use `criteria validate` and `criteria example`. Tips from the Jev docs:
    - Write descriptions that tell options apart; use `what`/`not_for` objects when categories get confused.
    - Option order can bias answers, so test reorderings.
@@ -949,7 +949,7 @@ def _block_disk_io(monkeypatch):
 
 Add each conftest fixture in the commit that first uses it.
 
-**Done when** (on Windows, set `UV_PROJECT_ENVIRONMENT` first, §0.2):
+**Done when:**
 - [ ] `uv sync` succeeds
 - [ ] `uv run ruff check .` and `uv run ruff format --check .` are clean
 - [ ] `uv run pytest` passes with total coverage ≥95% (enforced by `fail_under`)
@@ -1007,23 +1007,23 @@ Add each conftest fixture in the commit that first uses it.
 
 1. **Before S1:**
    - Allow git on this share: `git config --global --add safe.directory '%(prefix)///diatom/nick/dev/sandbox/jev-gmail-labeler'`.
-   - Set a git identity on the machine that runs the sessions (Windows has none).
+   - Set a git identity on the machine that runs the sessions (done).
    - Make the tree clean. Commit or discard the deletion of `prompts/create-jev-labeler.md` and the untracked `prompts/plan-redesign-prompt.md`, because S3 moves `prompts/`.
-   - On Windows, `git config core.filemode false` in this repo silences the false mode changes.
-2. **Push:** `origin` uses the SSH alias `github-1npo`, which is not configured on this Windows machine. Run the sessions on the Linux host, or expect to push yourself.
-3. **uv on Windows is 0.7.19** (the lockfile was made by 0.11.19). Run `uv self update` before the sessions if you run them on Windows.
-4. **Google Cloud (after S2).** Do the steps in user guide §4:
+
+   *Status: done (user, 2026-10-03). All sessions run on `diatom` with the `claude` CLI.*
+2. **Push:** `origin` uses the SSH alias `github-1npo`, which must resolve on `diatom`.
+3. **Google Cloud (user, after all sessions).** Follow the steps in the user guide (§10 item 4), which must give explicit Console and `gcloud` instructions for each:
    - Enable the APIs.
    - Add the `pubsub` scope to the consent screen.
    - Create the topic and **grant `gmail-api-push@system.gserviceaccount.com` Publisher on the topic**.
    - Create the subscription with `--expiration-period=never`; by default, subscriptions are deleted after 31 days of inactivity.
-5. **OAuth publishing status.** In "Testing", refresh tokens expire after **7 days** and the service exits with code 3 weekly. Recommended: publish the app ("In production"), accept the one-time unverified-app warning, then re-run `auth`. Your existing `token.json` files lack the new `pubsub` scope, so re-running `auth` is required anyway.
-6. **Behaviour changes to confirm:**
+4. **OAuth publishing status: decided.** The user will publish the app ("In production") and accept the one-time unverified-app warning, then re-run `auth`. Existing `token.json` files lack the new `pubsub` scope, so re-running `auth` is required anyway. The user guide must document both steps.
+5. **Behaviour changes: accepted by the user (2026-10-03):**
    - The `from_government` question and the `report` command are dropped (D8, D11).
    - Presidio switches from *redact* to *replace* (D9).
    - Only INBOX mail is processed by the service (D5).
    - Install size is about 400 MB, because the spaCy model is bundled (D10).
-7. **Jev model alias:** `jev-latest` can change under you. Once you have tuned `min_confidence`, set `jev_model` to `jev-1.13.0`.
+6. **Jev model alias:** `jev-latest` can change under you. Once you have tuned `min_confidence`, set `jev_model` to `jev-1.13.0`.
 
 ---
 
@@ -1061,11 +1061,11 @@ Add each conftest fixture in the commit that first uses it.
 ### Session 1
 
 ```
-You are implementing Session 1 of a planned rewrite in W:\dev\sandbox\jev-gmail-labeler.
+You are implementing Session 1 of a planned rewrite of this repository (run from the repo root).
 Read planning/PLAN.md in full first, then execute section "S1" exactly, task by task, committing at
 each listed boundary. All design decisions are in the plan; do not redesign. Follow §0 ground rules
-strictly: never open anything in workspace/, token.json, credentials.json; never touch .venv (use
-UV_PROJECT_ENVIRONMENT on Windows); tests must never touch disk or network. When every "Done when"
+strictly: never open anything in workspace/, token.json, credentials.json; don't delete or recreate .venv;
+tests must never touch disk or network. When every "Done when"
 check passes, merge rewrite/core into main and push (report the command if push fails). Finish with a
 short report: commits made, coverage %, any deviation from the plan and why.
 ```
@@ -1073,11 +1073,11 @@ short report: commits made, coverage %, any deviation from the plan and why.
 ### Session 2
 
 ```
-You are implementing Session 2 of a planned rewrite in W:\dev\sandbox\jev-gmail-labeler.
+You are implementing Session 2 of a planned rewrite of this repository (run from the repo root).
 Session 1 is already merged into main. Read planning/PLAN.md in full first, then execute section "S2"
 exactly, task by task, committing at each listed boundary. Reuse the S1 modules and fixtures as they
 exist in src/ and tests/; do not redesign. Follow §0 ground rules strictly (no workspace/ access,
-don't touch .venv, no disk/network in tests, never run auth/label/listen/watch against real
+don't delete .venv, no disk/network in tests, never run auth/label/listen/watch against real
 accounts). When every "Done when" check passes, merge rewrite/service into main and push (report the
 command if push fails). Finish with a short report: commits, coverage %, deviations and why.
 ```
@@ -1085,7 +1085,7 @@ command if push fails). Finish with a short report: commits, coverage %, deviati
 ### Session 3
 
 ```
-You are implementing Session 3 (documentation) of a planned rewrite in W:\dev\sandbox\jev-gmail-labeler.
+You are implementing Session 3 (documentation) of a planned rewrite of this repository (run from the repo root).
 Sessions 1 and 2 are merged into main. Read planning/PLAN.md in full first, then execute section "S3"
 exactly. Write docs from the real code: copy commands/flags from `uv run jev-gmail-labeler <cmd> --help`
 and config keys from src/jev_gmail_labeler/config.py. Plain, concise language; jargon only when
