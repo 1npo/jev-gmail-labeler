@@ -3,13 +3,17 @@
 import base64
 import builtins
 import io
+import json
 import os
 import site
 import sqlite3
 import sys
 import sysconfig
+from unittest.mock import MagicMock
 
+import httplib2
 import pytest
+from googleapiclient.errors import HttpError
 
 from jev_gmail_labeler.criteria import parse_criteria
 from jev_gmail_labeler.models import AnonymizedEmail, EmailMessage
@@ -198,3 +202,31 @@ class FakeClock:
 @pytest.fixture
 def fake_clock() -> FakeClock:
     return FakeClock()
+
+
+@pytest.fixture
+def gmail_service() -> MagicMock:
+    return MagicMock(name='gmail_service')
+
+
+@pytest.fixture
+def api():
+    """``api(service, 'messages.get')`` -> mock of ``service.users().messages().get``."""
+
+    def get(service, path):
+        users = service.users()
+        if '.' not in path:
+            return getattr(users, path)
+        resource, method = path.split('.')
+        return getattr(getattr(users, resource)(), method)
+
+    return get
+
+
+@pytest.fixture
+def make_http_error():
+    def factory(status: int, reason: str | None = None) -> HttpError:
+        body = json.dumps({'error': {'message': reason or f'error {status}'}}).encode()
+        return HttpError(httplib2.Response({'status': status}), body)
+
+    return factory
