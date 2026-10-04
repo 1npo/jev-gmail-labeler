@@ -2,6 +2,21 @@
 
 Label your Gmail messages automatically, as they arrive, using [Jev](docs/ABOUT_JEV.md) (TypeSafe's fast text classifier).
 
+## Content
+
+- [jev-gmail-labeler](#jev-gmail-labeler)
+  - [Content](#content)
+  - [What it does](#what-it-does)
+  - [How it works](#how-it-works)
+  - [Requirements](#requirements)
+  - [Install](#install)
+  - [Quick start](#quick-start)
+  - [Usage](#usage)
+  - [Documentation](#documentation)
+  - [Privacy](#privacy)
+  - [Development](#development)
+  - [License](#license)
+
 ## What it does
 
 - Watches your Gmail inbox and picks up new mail within seconds.
@@ -80,3 +95,7 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LICENSE) file for details.
