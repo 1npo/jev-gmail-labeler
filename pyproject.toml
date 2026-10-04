@@ -38,8 +38,12 @@ allow-direct-references = true
 [tool.ruff]
 line-length = 90 # For linting (e.g., E501 rule)
 src = ["src", "tests"]
-extend-exclude = ["sandbox"]  # legacy prototype, removed in a later session
-include = ["*.py", "*.pyi", "**/pyproject.toml"]  # skip Markdown, which ruff can also format
+extend-exclude = ["sandbox"] # legacy prototype, removed in a later session
+include = [
+    "*.py",
+    "*.pyi",
+    "**/pyproject.toml",
+] # skip Markdown, which ruff can also format
 
 [tool.ruff.lint]
 select = [
@@ -69,7 +73,11 @@ branch = true
 fail_under = 95
 show_missing = true
 skip_covered = true
-exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "if __name__ == .__main__.:"]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
 
 [tool.uv]
 package = true
