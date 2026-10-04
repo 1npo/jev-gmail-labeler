@@ -1,0 +1,58 @@
+"""Shared guards and fixtures. Tests must never touch the disk or the network."""
+
+import builtins
+import io
+import os
+import site
+import sqlite3
+import sys
+import sysconfig
+
+import pytest
+
+
+class DiskIOBlocked(AssertionError):
+    """Raised when a test tries to touch the disk."""
+
+
+@pytest.fixture(autouse=True)
+def _block_disk_io(monkeypatch):
+    roots = tuple(
+        {
+            os.path.abspath(p)
+            for p in (
+                sys.prefix,
+                sys.base_prefix,
+                sysconfig.get_paths()['stdlib'],
+                *site.getsitepackages(),
+            )
+        }
+    )
+    real_open = builtins.open
+
+    def guarded_open(file, mode='r', *args, **kwargs):
+        if isinstance(file, int):
+            return real_open(file, mode, *args, **kwargs)
+        path = os.path.abspath(os.fspath(file))
+        # Read-only library data files are fine.
+        if not any(c in mode for c in 'wax+') and path.startswith(roots):
+            return real_open(file, mode, *args, **kwargs)
+        raise DiskIOBlocked(
+            f'test tried to open {file!r} (mode {mode!r}); mock jev_gmail_labeler.files'
+        )
+
+    def blocked(*a, **k):
+        raise DiskIOBlocked(f'disk write blocked: {a!r}')
+
+    real_connect = sqlite3.connect
+
+    def guarded_connect(database, *a, **k):
+        if database != ':memory:':
+            raise DiskIOBlocked(f'sqlite file {database!r}')
+        return real_connect(database, *a, **k)
+
+    monkeypatch.setattr(builtins, 'open', guarded_open)
+    monkeypatch.setattr(io, 'open', guarded_open)
+    for name in ('replace', 'remove', 'unlink', 'mkdir', 'makedirs', 'rename', 'chmod'):
+        monkeypatch.setattr(os, name, blocked)
+    monkeypatch.setattr(sqlite3, 'connect', guarded_connect)
