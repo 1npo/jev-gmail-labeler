@@ -54,7 +54,7 @@ This plan is executed by **3 sessions**, run in order. Each session reads this w
 ```
 pyproject.toml  uv.lock  README.md  .gitignore  .python-version
 deploy/systemd/jev-gmail-labeler.service      (S2)
-docs/user-guide.md  docs/ABOUT_JEV.md          (S3)
+docs/USER_GUIDE.md  docs/ABOUT_JEV.md          (S3)
 planning/PLAN.md  planning/prompts/*.md        (S3 moves prompts/)
 src/jev_gmail_labeler/
   __init__.py          __version__ re-export
@@ -868,7 +868,7 @@ def _block_disk_io(monkeypatch):
 ## 10. Documentation plan (S3, written last)
 
 `docs/` holds usage and setup docs only:
-- `docs/user-guide.md` (new)
+- `docs/USER_GUIDE.md` (new)
 - `docs/ABOUT_JEV.md` (moved)
 
 `planning/` holds only `PLAN.md` and `prompts/`. The README must not link into `planning/`.
@@ -919,7 +919,7 @@ def _block_disk_io(monkeypatch):
 5. Install.
 6. Quick start: 6 numbered steps, each linking to a guide section.
 7. Usage: 4 short examples.
-8. Documentation: links to `docs/user-guide.md` and `docs/ABOUT_JEV.md`.
+8. Documentation: links to `docs/USER_GUIDE.md` and `docs/ABOUT_JEV.md`.
 9. Privacy.
 10. Development: `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`.
 11. LLM use disclosure (updated: planned by Claude Opus, implemented by Claude Sonnet sessions).
@@ -990,7 +990,7 @@ Add each conftest fixture in the commit that first uses it.
 |---|---|---|
 | 1 | Preflight; `uv sync`; `uv run pytest` passes | — |
 | 2 | `git mv ABOUT_JEV.md docs/ABOUT_JEV.md`; `git mv prompts planning/prompts` | `Move Jev notes to docs and prompts to planning` |
-| 3 | Write `docs/user-guide.md` (§10 outline). Copy every command and flag from actual `--help` output and every config key from `config.py`. | `Add user guide` |
+| 3 | Write `docs/USER_GUIDE.md` (§10 outline). Copy every command and flag from actual `--help` output and every config key from `config.py`. | `Add user guide` |
 | 4 | Rewrite `README.md` (§10 outline) | `Rewrite README for the new tool` |
 | 5 | Re-read both docs for plain language and accuracy against the code. Fix any mismatches. | `Polish documentation` (only if changes) |
 | 6 | Verify, then merge and push | merge commit |

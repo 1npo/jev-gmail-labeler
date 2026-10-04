@@ -36,12 +36,12 @@ uv tool install git+https://github.com/1npo/jev-gmail-labeler.git
 
 ## Quick start
 
-1. [Set up Google Cloud](docs/user-guide.md#4-set-up-google-cloud): APIs, OAuth client, topic and subscription.
-2. [Configure](docs/user-guide.md#5-configure) the config file and your TypeSafe API key.
-3. [Authorize Gmail](docs/user-guide.md#6-authorize-gmail): `jev-gmail-labeler auth`.
-4. [Write your criteria](docs/user-guide.md#7-write-your-email-criteria) and check them: `jev-gmail-labeler criteria validate`.
-5. [Try a dry run](docs/user-guide.md#8-run-it-manually): `jev-gmail-labeler label --count 20`.
-6. [Run it as a service](docs/user-guide.md#9-run-it-as-a-service) with systemd.
+1. [Set up Google Cloud](docs/USER_GUIDE.md#4-set-up-google-cloud): APIs, OAuth client, topic and subscription.
+2. [Configure](docs/USER_GUIDE.md#5-configure) the config file and your TypeSafe API key.
+3. [Authorize Gmail](docs/USER_GUIDE.md#6-authorize-gmail): `jev-gmail-labeler auth`.
+4. [Write your criteria](docs/USER_GUIDE.md#7-write-your-email-criteria) and check them: `jev-gmail-labeler criteria validate`.
+5. [Try a dry run](docs/USER_GUIDE.md#8-run-it-manually): `jev-gmail-labeler label --count 20`.
+6. [Run it as a service](docs/USER_GUIDE.md#9-run-it-as-a-service) with systemd.
 
 ## Usage
 
@@ -63,7 +63,7 @@ Run `jev-gmail-labeler <command> --help` for all options.
 
 ## Documentation
 
-- [User guide](docs/user-guide.md): setup, configuration, criteria, running, troubleshooting
+- [User guide](docs/USER_GUIDE.md): setup, configuration, criteria, running, troubleshooting
 - [About Jev](docs/ABOUT_JEV.md): what Jev is and how it works
 
 ## Privacy
