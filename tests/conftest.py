@@ -21,6 +21,7 @@ from jev_gmail_labeler.criteria import parse_criteria
 from jev_gmail_labeler.google_api.gmail import GmailClient
 from jev_gmail_labeler.google_api.labels import LabelManager
 from jev_gmail_labeler.models import AnonymizedEmail, ClassificationResult, EmailMessage
+from jev_gmail_labeler.state import StateStore
 
 
 class DiskIOBlocked(AssertionError):
@@ -304,3 +305,10 @@ def anonymizer(anonymized_email) -> MagicMock:
     mock = MagicMock(spec=Anonymizer)
     mock.anonymize.return_value = anonymized_email
     return mock
+
+
+@pytest.fixture
+def memory_state(fake_clock):
+    store = StateStore(':memory:', clock=fake_clock.time)
+    yield store
+    store.close()
