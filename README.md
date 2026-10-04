@@ -80,7 +80,3 @@ uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 ```
-
-## LLM use disclosure
-
-The first prototype was written by hand with some help from Claude. This version was planned by Claude Opus and implemented by Claude Sonnet sessions, including the tests and documentation.
