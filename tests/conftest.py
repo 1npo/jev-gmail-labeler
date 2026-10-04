@@ -9,6 +9,7 @@ import site
 import sqlite3
 import sys
 import sysconfig
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -17,10 +18,13 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from jev_gmail_labeler.anonymize import Anonymizer
+from jev_gmail_labeler.config import AppConfig
 from jev_gmail_labeler.criteria import parse_criteria
 from jev_gmail_labeler.google_api.gmail import GmailClient
 from jev_gmail_labeler.google_api.labels import LabelManager
+from jev_gmail_labeler.google_api.pubsub import PulledMessage
 from jev_gmail_labeler.models import AnonymizedEmail, ClassificationResult, EmailMessage
+from jev_gmail_labeler.state import StateStore
 
 
 class DiskIOBlocked(AssertionError):
@@ -304,3 +308,45 @@ def anonymizer(anonymized_email) -> MagicMock:
     mock = MagicMock(spec=Anonymizer)
     mock.anonymize.return_value = anonymized_email
     return mock
+
+
+@pytest.fixture
+def memory_state(fake_clock):
+    store = StateStore(':memory:', clock=fake_clock.time)
+    yield store
+    store.close()
+
+
+@pytest.fixture
+def make_pulled():
+    def factory(history_id, email='me@example.com', ack_id='a1') -> PulledMessage:
+        data = json.dumps({'emailAddress': email, 'historyId': history_id}).encode()
+        return PulledMessage(ack_id=ack_id, data=data, message_id=f'pm-{ack_id}')
+
+    return factory
+
+
+@pytest.fixture
+def app_config() -> AppConfig:
+    fake = Path('/fake')
+    return AppConfig(
+        credentials_file=fake / 'credentials.json',
+        token_file=fake / 'token.json',
+        criteria_file=fake / 'criteria.json',
+        state_db=fake / 'state.sqlite3',
+        typesafe_api_key_file=None,
+        jev_model='jev-latest',
+        jev_timeout_seconds=10.0,
+        gmail_user='me',
+        pubsub_topic='projects/p/topics/t',
+        pubsub_subscription='projects/p/subscriptions/s',
+        max_body_chars=8000,
+        spacy_model='en_core_web_md',
+        log_level='INFO',
+        max_attempts=3,
+        idle_resync_minutes=15,
+        catchup_max_messages=200,
+        pull_max_messages=10,
+        pull_timeout_seconds=20.0,
+        gmail_quota_units_per_minute=5000,
+    )
