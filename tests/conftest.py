@@ -1,5 +1,6 @@
 """Shared guards and fixtures. Tests must never touch the disk or the network."""
 
+import base64
 import builtins
 import io
 import os
@@ -111,3 +112,89 @@ def criteria_data() -> dict:
 @pytest.fixture
 def criteria(criteria_data):
     return parse_criteria(criteria_data)
+
+
+def _b64(text: str, charset: str = 'utf-8') -> str:
+    return base64.urlsafe_b64encode(text.encode(charset)).decode().rstrip('=')
+
+
+@pytest.fixture
+def make_raw_message():
+    """Build a Gmail API ``format=full`` message resource."""
+
+    def factory(
+        id='m1',
+        subject='Hi',
+        sender='A <a@x.com>',
+        plain=None,
+        html=None,
+        label_ids=('INBOX',),
+        attachment=False,
+        snippet='',
+    ) -> dict:
+        text_parts = []
+        if plain is not None:
+            text_parts.append(
+                {'mimeType': 'text/plain', 'filename': '', 'body': {'data': _b64(plain)}}
+            )
+        if html is not None:
+            text_parts.append(
+                {'mimeType': 'text/html', 'filename': '', 'body': {'data': _b64(html)}}
+            )
+        parts = [
+            {'mimeType': 'multipart/alternative', 'filename': '', 'parts': text_parts}
+        ]
+        if attachment:
+            parts.append(
+                {
+                    'mimeType': 'application/pdf',
+                    'filename': 'bill.pdf',
+                    'body': {'attachmentId': 'att1', 'size': 10},
+                }
+            )
+        return {
+            'id': id,
+            'threadId': f't-{id}',
+            'historyId': '100',
+            'internalDate': '1700000000000',
+            'labelIds': list(label_ids),
+            'snippet': snippet,
+            'payload': {
+                'mimeType': 'multipart/mixed',
+                'headers': [
+                    {'name': 'From', 'value': sender},
+                    {'name': 'To', 'value': 'me@example.com'},
+                    {'name': 'Subject', 'value': subject},
+                    {'name': 'Date', 'value': 'Tue, 3 Oct 2026 12:00:00 +0000'},
+                ],
+                'parts': parts,
+            },
+        }
+
+    return factory
+
+
+class FakeClock:
+    """A clock whose ``sleep`` advances time instead of blocking."""
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = start
+        self.slept: list[float] = []
+
+    def time(self) -> float:
+        return self.now
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock() -> FakeClock:
+    return FakeClock()
