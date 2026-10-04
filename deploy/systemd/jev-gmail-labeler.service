@@ -1,0 +1,15 @@
+[Unit]
+Description=Label new Gmail messages with Jev
+Documentation=https://github.com/1npo/jev-gmail-labeler
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/jev-gmail-labeler/env
+ExecStart=%h/.local/bin/jev-gmail-labeler listen
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=2 3
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target
