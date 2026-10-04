@@ -34,7 +34,7 @@ This plan is executed by **3 sessions**, run in order. Each session reads this w
 | D7 | Idempotency has two layers. (a) The service skips message IDs already in the state DB. (b) The pipeline skips any message that already carries a label managed by the criteria file, unless `--force` is given. |
 | D8 | The criteria file defines one Jev **Choice** question. The PoC's extra `from_government` Noul is dropped. A reserved no-match option `_none` is always appended. |
 | D9 | Anonymization uses Presidio with the **replace** operator, which gives placeholders like `<PERSON>` (the PoC used `redact`). Only the body is anonymized, matching the PoC. The body is truncated to `max_body_chars` (default 8000) **before** anonymization. |
-| D10 | The spaCy model `en_core_web_lg` 3.8.0 is a direct-URL dependency, so installs work offline after setup. |
+| D10 | The spaCy model `en_core_web_md` 3.8.0 (about 33 MB) is a direct-URL dependency, so installs work offline after setup. It is a middle ground between size and name-detection accuracy. Users who want the large model can add it at install time with `uv tool install --with "en-core-web-lg @ <wheel URL>" ...` and set `spacy_model` to `en_core_web_lg`. |
 | D11 | The `report`, `get-emails`, `anonymize-emails` and `classify-emails` commands are removed. `label --output x.csv` replaces `report`. `pandas` and `ipython` are dropped. |
 | D12 | Config precedence, lowest to highest: built-in defaults < env vars `JEV_LABELER_*` < config file < `--config-json` < individual CLI flags. |
 | D13 | The TypeSafe API key never appears in config JSON or CLI flags. It comes from `typesafe_api_key_file` (if set) or else env `TYPESAFE_API_KEY`. |
@@ -287,7 +287,7 @@ EXAMPLE_CRITERIA: dict[str, Any]
 | `pubsub_topic` | str \| null | null | `JEV_LABELER_PUBSUB_TOPIC` | `--topic` |
 | `pubsub_subscription` | str \| null | null | `JEV_LABELER_PUBSUB_SUBSCRIPTION` | `--subscription` |
 | `max_body_chars` | int 100–60000 | 8000 | `JEV_LABELER_MAX_BODY_CHARS` | `--max-body-chars` |
-| `spacy_model` | str | `en_core_web_lg` | `JEV_LABELER_SPACY_MODEL` | — |
+| `spacy_model` | str | `en_core_web_md` | `JEV_LABELER_SPACY_MODEL` | — |
 | `log_level` | `DEBUG\|INFO\|WARNING\|ERROR` | `INFO` | `JEV_LABELER_LOG_LEVEL` | `--log-level` |
 | `max_attempts` | int ≥1 | 5 | `JEV_LABELER_MAX_ATTEMPTS` | — |
 | `idle_resync_minutes` | int ≥1 | 15 | `JEV_LABELER_IDLE_RESYNC_MINUTES` | — |
@@ -486,7 +486,7 @@ def decode_header_value(value: str) -> str   # str(make_header(decode_header(v))
 
 ```python
 class Anonymizer:
-    def __init__(self, spacy_model: str = 'en_core_web_lg', *, language: str = 'en'): ...   # no heavy work here
+    def __init__(self, spacy_model: str = 'en_core_web_md', *, language: str = 'en'): ...   # no heavy work here
     def _engines(self)  # lazy, cached: imports presidio_analyzer / presidio_anonymizer INSIDE the method;
         # NlpEngineProvider(nlp_configuration={'nlp_engine_name':'spacy','models':[{'lang_code':'en','model_name':m}]})
         # AnalyzerEngine(nlp_engine=provider.create_engine(), supported_languages=['en']); AnonymizerEngine()
@@ -852,7 +852,7 @@ def _block_disk_io(monkeypatch):
 - Runtime deps. Use `uv add` / `uv remove`, so uv picks current lower bounds.
   - Keep `beautifulsoup4`, `lxml`, `google-api-python-client`, `google-auth`, `google-auth-oauthlib`, `presidio-analyzer`, `presidio-anonymizer` and `spacy`.
   - Raise the floor to `typesafe-sdk>=0.7.2`.
-  - Add `google-cloud-pubsub`, `platformdirs` and `"en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl"`.
+  - Add `google-cloud-pubsub`, `platformdirs` and `"en-core-web-md @ https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl"`.
   - Remove `pandas` and `ipython`.
 - Dev group: `pytest`, `pytest-cov`, `pytest-socket`, `ruff`. Remove `ipython`.
 - Build settings:
@@ -876,7 +876,7 @@ def _block_disk_io(monkeypatch):
 **User guide outline** (plain language; define each technical term once, on first use):
 1. **What it does.** The 4-step pipeline. What leaves your machine: the anonymized body plus headers go to TypeSafe; Google sees only label changes.
 2. **What you need.** Linux with systemd (for the service), Python 3.13, uv, a Google account, a TypeSafe API key, and optionally the gcloud CLI.
-3. **Install.** Run `uv tool install git+https://github.com/1npo/jev-gmail-labeler.git` (about 400 MB, because of the spaCy model).
+3. **Install.** Run `uv tool install git+https://github.com/1npo/jev-gmail-labeler.git` (about 33 MB of it is the spaCy language model). Add an optional subsection, "Use the larger language model". It gives the `uv tool install --with "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" ...` command and says to set `spacy_model` to `en_core_web_lg`. The trade-off: about 400 MB on disk, slower startup, and better name detection.
 4. **Set up Google Cloud.** Give Console steps and the equivalent `gcloud` commands:
    - Create a project and enable `gmail.googleapis.com` and `pubsub.googleapis.com`. A billing account may be required for Pub/Sub; this volume fits in the free tier.
    - In Google Auth Platform: Branding; Audience (External; add yourself as a test user); Data Access (add the `gmail.modify` and `pubsub` scopes).
@@ -1022,7 +1022,7 @@ Add each conftest fixture in the commit that first uses it.
    - The `from_government` question and the `report` command are dropped (D8, D11).
    - Presidio switches from *redact* to *replace* (D9).
    - Only INBOX mail is processed by the service (D5).
-   - Install size is about 400 MB, because the spaCy model is bundled (D10).
+   - The default spaCy model is `en_core_web_md` (about 33 MB). `en_core_web_lg` is an optional install (D10).
 6. **Jev model alias:** `jev-latest` can change under you. Once you have tuned `min_confidence`, set `jev_model` to `jev-1.13.0`.
 
 ---
