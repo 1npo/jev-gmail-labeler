@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Label every unlabelled email in the inbox, in batches.
 #
-# Each pass asks Gmail for inbox emails that carry none of the labels in the
+# First, one review pass re-classifies inbox emails that carry the criteria
+# file's uncertain_label or no_match_label (with --force, so a new label replaces
+# the old one). Edit the criteria file after reviewing them and rerun to move them.
+# Then each pass asks Gmail for inbox emails that carry none of the labels in the
 # criteria file, so the script can be stopped and restarted at any time without
 # re-classifying emails that are already labelled.
 #
+# The review pass runs once per invocation, over at most --batch emails, because
+# emails that stay uncertain would otherwise be fetched again forever.
+#
 # Usage: scripts/label-inbox.sh [--dry-run] [--batch N] [--criteria-file PATH]
-#   --dry-run    classify one batch without applying labels, then stop
+#   --dry-run    classify one batch of each kind without applying labels, then stop
 #   --batch N    emails per pass, 1-1000 (default 500)
 #   --criteria-file PATH
 #                default ~/.config/jev-gmail-labeler/criteria.json
@@ -23,7 +29,7 @@ while (($#)); do
     --dry-run) dry_run=1 ;;
     --batch) batch="${2:?--batch needs a value}"; shift ;;
     --criteria-file) criteria="${2:?--criteria-file needs a value}"; shift ;;
-    -h | --help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -36,36 +42,54 @@ fi
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 [[ -r "$criteria" ]] || { echo "cannot read $criteria" >&2; exit 1; }
 
-# Build `-label:"a" -label:"b" ...` from every label the criteria file can apply.
+# Prefix-aware label names from the criteria file, as Gmail search terms.
 # A category without a "label" key uses its id, with spaces/underscores as hyphens; "label": null applies nothing.
-exclusions=$(jq -r '
-  (.label_prefix // "") as $p
-  | [ (.categories[] | if has("label") then .label else (.id | gsub("[ _]"; "-")) end),
-      .uncertain_label, .no_match_label ]
-  | map(select(. != null) | if $p != "" then "\($p)/\(.)" else . end)
-  | unique
-  | map("-label:\"" + gsub("\""; "") + "\"")
-  | join(" ")
-' "$criteria")
+label_terms() { # $1: jq expression listing label names
+  jq -r --arg op "$2" '
+    (.label_prefix // "") as $p
+    | [ '"$1"' ]
+    | map(select(. != null) | if $p != "" then "\($p)/\(.)" else . end)
+    | unique
+    | map($op + "label:\"" + gsub("\""; "") + "\"")
+    | join(if $op == "" then " OR " else " " end)
+  ' "$criteria"
+}
+
+exclusions=$(label_terms '(.categories[] | if has("label") then .label else (.id | gsub("[ _]"; "-")) end), .uncertain_label, .no_match_label' '-')
 [[ -n "$exclusions" ]] || { echo "no labels found in $criteria" >&2; exit 1; }
-query="in:inbox $exclusions"
+review=$(label_terms '.uncertain_label, .no_match_label' '')
 
-args=(label --query "$query" --count "$batch" --criteria-file "$criteria")
-((dry_run)) || args+=(--apply)
-
-total=0
-pass=0
-while true; do
-  pass=$((pass + 1))
-  summary=$("$bin" "${args[@]}" 2>&1 >/dev/null | tee /dev/stderr | grep '^Processed ' || true)
+# run_pass QUERY [EXTRA_ARG...]: sets $processed and $labelled.
+run_pass() {
+  local args=(label --query "$1" --count "$batch" --criteria-file "$criteria")
+  shift
+  ((dry_run)) || args+=(--apply)
+  local summary
+  summary=$("$bin" "${args[@]}" "$@" 2>&1 >/dev/null | tee /dev/stderr | grep '^Processed ' || true)
   processed=$(sed -n 's/^Processed \([0-9]*\) emails.*/\1/p' <<<"$summary")
   labelled=$(sed -n 's/.* \([0-9]*\) labelled.*/\1/p' <<<"$summary")
   if [[ -z "$processed" ]]; then
-    echo "pass $pass: no summary line from $bin; stopping" >&2
+    echo "$label: no summary line from $bin; stopping" >&2
     exit 1
   fi
   total=$((total + ${labelled:-0}))
-  echo "pass $pass: $summary (total labelled: $total)"
+  echo "$label: $summary (total labelled: $total)"
+}
+
+total=0
+processed=0
+labelled=0
+
+if [[ -n "$review" ]]; then
+  label="review pass"
+  run_pass "in:inbox ($review)" --force
+fi
+
+pass=0
+while true; do
+  pass=$((pass + 1))
+  label="pass $pass"
+  run_pass "in:inbox $exclusions"
 
   ((dry_run)) && break
   if ((processed == 0)); then
