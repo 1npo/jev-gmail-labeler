@@ -16,6 +16,26 @@
       "description": "A news report or article"
     },
     {
+      "id": "notice_municipal",
+      "description": "A notice with news or information from the government of the town or city I live in"
+    },
+    {
+      "id": "notice_community",
+      "description": "A notice or report from a community watch group or service about local activity, such as planned events, traffic, or crime"
+    },
+    {
+      "id": "notice_health",
+      "description": "A health-related notice or alert issued by a hospital, medical institute, or government agency"
+    },
+    {
+      "id": "notice_recall",
+      "description": "A notice about a product recall"
+    },
+    {
+      "id": "classified_ad_posting",
+      "description": "Email from a classified service (such as Craigslist) containing information about my account or an advertisement I posted"
+    },
+    {
       "id": "personal",
       "description": "A personal email between me and another individual, not an email from a company or agency"
     },
@@ -36,6 +56,14 @@
       "description": "An \"friend request\"-type invitation from a specific person on a social media website"
     },
     {
+      "id": "meeting_invite",
+      "description": null
+    },
+    {
+      "id": "meeting_cancellation",
+      "description": null
+    },
+    {
       "id": "voip_missed_call",
       "description": "A notice that a phone, video, or VoIP call was missed"
     },
@@ -48,6 +76,14 @@
       "description": "A confirmation that I have a placed an order, eg. at an e-commerce store"
     },
     {
+      "id": "order_refund_confirmation",
+      "description": "A notice confirming that a refund was requested, approved, or received"
+    },
+    {
+      "id": "order_refund_issued",
+      "description": "A notice that a refund was issued or processed"
+    },
+    {
       "id": "order_shipped",
       "description": "A notice that a package has shipped or delivery has been scheduled"
     },
@@ -57,7 +93,7 @@
     },
     {
       "id": "order_delivered",
-      "description": "A notice that a package or shipment was delivered"
+      "description": "A notice that a package or shipment was delivered or dropped off"
     },
     {
       "id": "order_cancelled",
@@ -80,6 +116,10 @@
       "description": "An email containing a statement or transaction history from a financial institution"
     },
     {
+      "id": "bank_notice",
+      "description": "A notice from a bank or financial institution that isn't a routine statement or transaction"
+    },
+    {
       "id": "credit_info",
       "description": "An email from a financial instution about my credit or credit report"
     },
@@ -98,6 +138,14 @@
     {
       "id": "magic_link",
       "description": "An email containing a magic sign-in link"
+    },
+    {
+      "id": "secure_message_received",
+      "description": "A notice that I've received a new secure message (typically by a banking institution)"
+    },
+    {
+      "id": "unread_messages",
+      "description": "A notice that I have unread messages"
     },
     {
       "id": "totp",
@@ -133,11 +181,19 @@
     },
     {
       "id": "appointment_reminder",
-      "description": null
+      "description": "A reminder or confirmation about an upcoming appointment"
     },
     {
       "id": "tickets",
       "description": "An acknowledgement that a ticket was opened, or someone responded to that ticket"
+    },
+    {
+      "id": "github_action_success",
+      "description": "An email about a Github action or other CI/CD process that succeeded"
+    },
+    {
+      "id": "github_action_failure",
+      "description": "An email about a Github action or other CI/CD process that failed or raised a warning or error"
     },
     {
       "id": "backup",
