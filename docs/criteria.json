@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "no_match_label": "jev-no-match",
+  "uncertain_label": "jev-not-certain",
+  "categories": [
+    {
+      "id": "marketing",
+      "description": "An advertisement, product announcement, or other marketing email"
+    },
+    {
+      "id": "request_for_feedback",
+      "description": "An email asking me to leave a review or provide feedback on a product or service"
+    },
+    {
+      "id": "news",
+      "description": "A news report or article"
+    },
+    {
+      "id": "personal",
+      "description": "A personal email between me and another individual, not an email from a company or agency"
+    },
+    {
+      "id": "note_to_self",
+      "description": "An email that I sent to myself (including emails I send from my personal email to my work emails)"
+    },
+    {
+      "id": "mention",
+      "description": "A notice that someone mentioned me in a chat channel"
+    },
+    {
+      "id": "networking_activity",
+      "description": "An email showing activity from a specific person on a social media website"
+    },
+    {
+      "id": "networking_invite",
+      "description": "An \"friend request\"-type invitation from a specific person on a social media website"
+    },
+    {
+      "id": "voip_missed_call",
+      "description": "A notice that a phone, video, or VoIP call was missed"
+    },
+    {
+      "id": "voip_voicemail",
+      "description": "A notice that a message or voicemail from a phone number was left"
+    },
+    {
+      "id": "order_confirmation",
+      "description": "A confirmation that I have a placed an order, eg. at an e-commerce store"
+    },
+    {
+      "id": "order_shipped",
+      "description": "A notice that a package has shipped or delivery has been scheduled"
+    },
+    {
+      "id": "delivery_update",
+      "description": "A notice that there has been a delay or other change to an in-flight delivery"
+    },
+    {
+      "id": "order_delivered",
+      "description": "A notice that a package or shipment was delivered"
+    },
+    {
+      "id": "order_cancelled",
+      "description": "A notice that a package or shipment order was canceled"
+    },
+    {
+      "id": "informed_delivery",
+      "description": "A daily \"Informed Delivery\" email from USPS"
+    },
+    {
+      "id": "receipt",
+      "description": null
+    },
+    {
+      "id": "bill",
+      "description": "A utility bill, eg., internet, phone, electricity, gas, etc"
+    },
+    {
+      "id": "bank_statement",
+      "description": "An email containing a statement or transaction history from a financial institution"
+    },
+    {
+      "id": "credit_info",
+      "description": "An email from a financial instution about my credit or credit report"
+    },
+    {
+      "id": "subscription_confirmation",
+      "description": "A confirmation that I signed up for or cancelled a subscription"
+    },
+    {
+      "id": "membership_renewal",
+      "description": null
+    },
+    {
+      "id": "forgot_password",
+      "description": null
+    },
+    {
+      "id": "magic_link",
+      "description": "An email containing a magic sign-in link"
+    },
+    {
+      "id": "totp",
+      "description": "An email containing a time-based one-time password"
+    },
+    {
+      "id": "new_login",
+      "description": "An email indicating that my account logged in from a new device"
+    },
+    {
+      "id": "data_breach",
+      "description": "An email indicating that my data was found in a data leak or breach"
+    },
+    {
+      "id": "policy_change_notice",
+      "description": "A notice from a company or agency about a change to one of their policies"
+    },
+    {
+      "id": "info_change_notice",
+      "description": "A notice from a company or agency about a change to my own information"
+    },
+    {
+      "id": "job_application",
+      "description": "An email related to a job that I've applied to"
+    },
+    {
+      "id": "job_interview",
+      "description": "An email related to an interview for a job that I've applied to"
+    },
+    {
+      "id": "job_offer",
+      "description": "An email containing an offer for a job that I've interviewed for"
+    },
+    {
+      "id": "appointment_reminder",
+      "description": null
+    },
+    {
+      "id": "tickets",
+      "description": "An acknowledgement that a ticket was opened, or someone responded to that ticket"
+    },
+    {
+      "id": "backup",
+      "description": "An email containing a daily data backup"
+    },
+    {
+      "id": "other",
+      "description": null
+    }
+  ]
+}
