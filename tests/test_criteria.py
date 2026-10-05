@@ -34,7 +34,7 @@ def test_example_parses():
         'An email from a financial ins'
     )
     assert 'friend request' in c.category('networking_invite').description
-    assert c.category('order_shipped').label_name == 'order_shipped'
+    assert c.category('order_shipped').label_name == 'order-shipped'
 
 
 def test_parse_minimal_defaults():
@@ -58,9 +58,9 @@ def test_parse_fixture(criteria):
     ]
 
 
-def test_derived_label_is_category_id():
+def test_derived_label_is_hyphenated_category_id():
     c = parse_criteria({'version': 1, 'categories': [{'id': 'order_shipped'}]})
-    assert c.categories[0].label_name == 'order_shipped'
+    assert c.categories[0].label_name == 'order-shipped'
 
 
 def test_derived_label_uses_explicit_prefix():

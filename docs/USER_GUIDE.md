@@ -484,6 +484,12 @@ jev-gmail-labeler criteria validate
 
 `validate` prints `OK: <n> categories` and one `<id> -> <label>` line per category, or lists every problem it finds (exit code 2).
 
+For a larger starting point, copy [`criteria.json`](criteria.json), a full set of 36 categories (orders, money, account security, jobs and more), then trim it to the categories you want:
+
+```
+cp docs/criteria.json ~/.config/jev-gmail-labeler/criteria.json
+```
+
 ### Example
 
 ```json
@@ -519,7 +525,7 @@ Unknown keys are errors.
 | `categories` | yes | | 1 to 254 categories |
 | `categories[].id` | yes | | Lowercase letters, digits and `_`, starting with a letter, up to 64 characters. Unique |
 | `categories[].description` | no | none | Tells Jev what the category means: text, or a JSON object or list. Sent as is |
-| `categories[].label` | no | the `id` | Absent: the label is the `id` itself, eg `order_shipped`. `null`: classify but never label |
+| `categories[].label` | no | the `id`, hyphenated | Absent: the label is the `id` with underscores and spaces replaced by hyphens, eg `order-shipped`. `null`: classify but never label |
 
 Label rules: each label is 1 to 200 characters, has no `//`, and does not start or end with `/` or a space. Several categories may share a label. A full label name may not be a Gmail system label (`INBOX`, `SENT`, `DRAFT`, `SPAM`, `TRASH`, `UNREAD`, `STARRED`, `IMPORTANT`, `CHAT`) or start with `CATEGORY_`.
 

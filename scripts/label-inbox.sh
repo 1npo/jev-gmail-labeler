@@ -37,10 +37,10 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 [[ -r "$criteria" ]] || { echo "cannot read $criteria" >&2; exit 1; }
 
 # Build `-label:"a" -label:"b" ...` from every label the criteria file can apply.
-# A category without a "label" key uses its id; "label": null applies nothing.
+# A category without a "label" key uses its id, with spaces/underscores as hyphens; "label": null applies nothing.
 exclusions=$(jq -r '
   (.label_prefix // "") as $p
-  | [ (.categories[] | if has("label") then .label else .id end),
+  | [ (.categories[] | if has("label") then .label else (.id | gsub("[ _]"; "-")) end),
       .uncertain_label, .no_match_label ]
   | map(select(. != null) | if $p != "" then "\($p)/\(.)" else . end)
   | unique

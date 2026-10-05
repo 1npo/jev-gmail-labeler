@@ -144,7 +144,9 @@ def _parse_category(
     label_name = None
     if 'label' not in raw:
         if isinstance(category_id, str) and ID_RE.match(category_id):
-            label_name = _check_label(category_id, f'{path}.label', prefix, errors)
+            label_name = _check_label(
+                re.sub(r'[ _]', '-', category_id), f'{path}.label', prefix, errors
+            )
     elif raw['label'] is not None:
         label_name = _check_label(raw['label'], f'{path}.label', prefix, errors)
 
