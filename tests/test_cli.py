@@ -363,6 +363,26 @@ def test_criteria_list(monkeypatch, criteria, capsys):
     ]
 
 
+def test_criteria_list_table(monkeypatch, criteria, capsys):
+    monkeypatch.setattr(cli, 'load_criteria', MagicMock(return_value=criteria))
+    assert cli.main(['criteria', 'list', '--table']) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].split() == ['#', 'id', 'label', 'description']
+    assert lines[2].split()[:3] == ['1', 'receipt', 'Jev/receipt']
+    assert lines[3].split()[:3] == ['2', 'news', 'Jev/Reading']
+    assert lines[4].split()[:4] == ['3', 'personal', '(no', 'label)']
+
+
+def test_criteria_table_formats_structured_and_missing_descriptions():
+    rows = [
+        {'id': 'a', 'label': 'A', 'description': None},
+        {'id': 'b', 'label': None, 'description': {'k': 'v'}},
+    ]
+    lines = cli._criteria_table(rows).splitlines()
+    assert lines[2].split() == ['1', 'a', 'A']
+    assert lines[3].endswith('{"k": "v"}')
+
+
 def test_criteria_list_error_exits_2(monkeypatch, caplog):
     monkeypatch.setattr(
         cli,

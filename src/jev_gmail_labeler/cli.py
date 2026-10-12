@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from tabulate import tabulate
+
 from jev_gmail_labeler import __version__
 from jev_gmail_labeler.app import build_gmail, build_pipeline, build_service
 from jev_gmail_labeler.config import (
@@ -166,6 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
     cp = crit_sub.add_parser('list', help='List the categories in the criteria file.')
     _common(cp)
     _add_flag(cp, '--criteria-file', 'criteria_file', metavar='PATH')
+    cp.add_argument('--table', action='store_true', help='print a numbered table')
     cp = crit_sub.add_parser('example', help='Print an example criteria file.')
     _common(cp)
 
@@ -268,6 +271,21 @@ def _cmd_watch(args: argparse.Namespace, config: AppConfig) -> int:
     return EXIT_OK
 
 
+def _criteria_table(rows: list[dict[str, Any]]) -> str:
+    def text(value: Any) -> str:
+        if value is None:
+            return ''
+        return value if isinstance(value, str) else json.dumps(value)
+
+    return tabulate(
+        [
+            (i, r['id'], r['label'] or '(no label)', text(r['description']))
+            for i, r in enumerate(rows, start=1)
+        ],
+        headers=('#', 'id', 'label', 'description'),
+    )
+
+
 def _cmd_criteria(args: argparse.Namespace, config: AppConfig) -> int:
     if args.subcommand == 'example':
         print(json.dumps(EXAMPLE_CRITERIA, indent=2))
@@ -278,7 +296,10 @@ def _cmd_criteria(args: argparse.Namespace, config: AppConfig) -> int:
             {'id': c.id, 'label': c.label_name, 'description': c.description}
             for c in criteria.categories
         ]
-        print(json.dumps(rows, indent=2))
+        if args.table:
+            print(_criteria_table(rows))
+        else:
+            print(json.dumps(rows, indent=2))
         return EXIT_OK
     print(f'OK: {len(criteria.categories)} categories')
     for category in criteria.categories:
