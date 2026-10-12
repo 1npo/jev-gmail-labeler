@@ -482,7 +482,7 @@ jev-gmail-labeler criteria example > ~/.config/jev-gmail-labeler/criteria.json
 jev-gmail-labeler criteria validate
 ```
 
-`validate` prints `OK: <n> categories` and one `<id> -> <label>` line per category, or lists every problem it finds (exit code 2).
+`validate` prints `OK: <n> categories` and one `<id> -> <label>` line per category, or lists every problem it finds (exit code 2). `criteria list` prints a JSON array with the `id`, Gmail `label` and `description` of each category.
 
 For a larger starting point, copy [`criteria.json`](criteria.json), a full set of 36 categories (orders, money, account security, jobs and more), then trim it to the categories you want:
 

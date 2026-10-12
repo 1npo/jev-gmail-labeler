@@ -163,6 +163,9 @@ def build_parser() -> argparse.ArgumentParser:
     cp = crit_sub.add_parser('validate', help='Check the criteria file.')
     _common(cp)
     _add_flag(cp, '--criteria-file', 'criteria_file', metavar='PATH')
+    cp = crit_sub.add_parser('list', help='List the categories in the criteria file.')
+    _common(cp)
+    _add_flag(cp, '--criteria-file', 'criteria_file', metavar='PATH')
     cp = crit_sub.add_parser('example', help='Print an example criteria file.')
     _common(cp)
 
@@ -270,6 +273,13 @@ def _cmd_criteria(args: argparse.Namespace, config: AppConfig) -> int:
         print(json.dumps(EXAMPLE_CRITERIA, indent=2))
         return EXIT_OK
     criteria = load_criteria(config.criteria_file)
+    if args.subcommand == 'list':
+        rows = [
+            {'id': c.id, 'label': c.label_name, 'description': c.description}
+            for c in criteria.categories
+        ]
+        print(json.dumps(rows, indent=2))
+        return EXIT_OK
     print(f'OK: {len(criteria.categories)} categories')
     for category in criteria.categories:
         print(f'{category.id} -> {category.label_name or "(no label)"}')

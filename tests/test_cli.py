@@ -107,6 +107,7 @@ def test_missing_command_exits_2(argv, capsys):
         ['watch', 'status', '--help'],
         ['criteria', '--help'],
         ['criteria', 'validate', '--help'],
+        ['criteria', 'list', '--help'],
         ['criteria', 'example', '--help'],
         ['config', '--help'],
         ['config', 'show', '--help'],
@@ -344,6 +345,32 @@ def test_criteria_validate(monkeypatch, criteria, capsys):
         'news -> Jev/Reading',
         'personal -> (no label)',
     ]
+
+
+def test_criteria_list(monkeypatch, criteria, capsys):
+    load = MagicMock(return_value=criteria)
+    monkeypatch.setattr(cli, 'load_criteria', load)
+    assert cli.main(['criteria', 'list', '--criteria-file', '/c.json']) == 0
+    assert load.call_args.args[0] == Path('/c.json')
+    assert json.loads(capsys.readouterr().out) == [
+        {
+            'id': 'receipt',
+            'label': 'Jev/receipt',
+            'description': 'A receipt for a purchase',
+        },
+        {'id': 'news', 'label': 'Jev/Reading', 'description': 'A news article'},
+        {'id': 'personal', 'label': None, 'description': 'A personal email'},
+    ]
+
+
+def test_criteria_list_error_exits_2(monkeypatch, caplog):
+    monkeypatch.setattr(
+        cli,
+        'load_criteria',
+        MagicMock(side_effect=CriteriaError(['version: required'], 'c')),
+    )
+    assert cli.main(['criteria', 'list']) == 2
+    assert 'version: required' in caplog.text
 
 
 def test_criteria_validate_error_exits_2(monkeypatch, caplog):
