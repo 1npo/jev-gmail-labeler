@@ -70,6 +70,9 @@ jev-gmail-labeler label --query "from:shop.example newer_than:7d" --apply --outp
 # Check your criteria file
 jev-gmail-labeler criteria validate
 
+# Print your criteria as a table
+jev-gmail-labeler criteria list --table
+
 # Run the listener in the foreground
 jev-gmail-labeler listen
 ```
@@ -100,3 +103,4 @@ uv run ruff format --check .
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
