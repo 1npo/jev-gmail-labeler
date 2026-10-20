@@ -610,6 +610,7 @@ CSV columns: `processed_at`, `message_id`, `thread_id`, `date`, `sender`, `subje
 | 2 | Bad usage, config or criteria file |
 | 3 | Authorization failed (Google token, or TypeSafe key rejected) |
 | 4 | `label` finished but at least one email ended in `error` |
+| 5 | Temporary failure, such as no network while refreshing the Google token. Try again later |
 | 130 | Interrupted (Ctrl+C) |
 
 ### Cost
@@ -637,7 +638,9 @@ systemctl --user enable --now jev-gmail-labeler
 loginctl enable-linger $USER
 ```
 
-`enable-linger` lets the service run when you are not logged in. The unit reads `TYPESAFE_API_KEY` from `~/.config/jev-gmail-labeler/env` and everything else from `config.json`. The service is not restarted after exit codes 2 or 3, because those need you to fix something (config, criteria or login). Look at the log to see what.
+`enable-linger` lets the service run when you are not logged in. The unit reads `TYPESAFE_API_KEY` from `~/.config/jev-gmail-labeler/env` and everything else from `config.json`. The service is not restarted after exit codes 2 or 3, because those need you to fix something (config, criteria or login). Look at the log to see what. Other failures, including exit 5 (a temporary problem such as the network being down), are restarted after 10 seconds.
+
+At boot, the unit waits until `oauth2.googleapis.com` resolves before starting. User units cannot wait for `network-online.target`, so it polls DNS instead. Without this, a service that starts before the network is up fails its first token refresh.
 
 Follow the log:
 
@@ -691,6 +694,7 @@ systemctl --user restart jev-gmail-labeler
 | No notifications arrive | `gmail-api-push@system.gserviceaccount.com` is missing the Publisher role **on the topic** ([4.8](#48-let-gmail-publish-to-the-topic)), or `pubsub_topic` does not match the topic you granted. Run `watch status` to see whether a watch is active |
 | `invalid_grant` about once a week | The OAuth app is still in Testing status, so the token expires after 7 days. Publish it ([4.10](#410-publish-the-app)), delete the token and run `auth` |
 | Log says `Authorization failed ... Run jev-gmail-labeler auth` (exit 3) | Token missing, revoked, or missing the `pubsub` scope. Delete `token.json` and run `auth` again |
+| Log says `Authorization failed temporarily ... Will retry` (exit 5) | The token could not be refreshed because Google was unreachable (no network or DNS). The service restarts by itself; re-authorizing will not help |
 | Log says the TypeSafe API key was rejected (exit 3) | Wrong or revoked key. Check `TYPESAFE_API_KEY` or `typesafe_api_key_file` with `config show` |
 | Service stopped working after a month of idleness | The subscription was deleted. Recreate it with `--expiration-period=never` ([4.9](#49-create-the-subscription)) |
 | `Cannot read subscription ...` | Wrong `pubsub_subscription`, or the signed-in account lacks access to it |

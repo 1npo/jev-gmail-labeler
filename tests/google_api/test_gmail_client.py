@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import httplib2
 import pytest
-from google.auth.exceptions import RefreshError
+from google.auth.exceptions import RefreshError, TransportError
 
 from jev_gmail_labeler.errors import (
     AuthError,
@@ -282,7 +282,14 @@ def test_refresh_error_is_auth_error(client, gmail_service, api):
         client.get_profile()
 
 
-@pytest.mark.parametrize('exc', [OSError('reset'), httplib2.ServerNotFoundError('dns')])
+@pytest.mark.parametrize(
+    'exc',
+    [
+        OSError('reset'),
+        httplib2.ServerNotFoundError('dns'),
+        TransportError('Temporary failure in name resolution'),
+    ],
+)
 def test_network_errors_are_transient(client, gmail_service, api, exc):
     respond(api, gmail_service, 'getProfile', exc)
     with pytest.raises(GmailError) as e:

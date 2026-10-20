@@ -38,6 +38,7 @@ EXIT_UNEXPECTED = 1
 EXIT_CONFIG = 2
 EXIT_AUTH = 3
 EXIT_ITEM_ERRORS = 4
+EXIT_TRANSIENT = 5
 EXIT_INTERRUPTED = 130
 
 QUERY_ONLY_LIMIT = 100
@@ -351,6 +352,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.error('%s', e)
         return EXIT_CONFIG
     except AuthError as e:
+        if e.transient:
+            # A network failure during token refresh; re-authorizing will not help.
+            log.error('Authorization failed temporarily: %s. Will retry', e)
+            return EXIT_TRANSIENT
         if str(e).startswith('TypeSafe'):
             log.error('%s', e)
         else:

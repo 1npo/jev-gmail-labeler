@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from google.api_core import exceptions as gexc
-from google.auth.exceptions import RefreshError
+from google.auth.exceptions import RefreshError, TransportError
 from google.cloud import pubsub_v1
 
 from jev_gmail_labeler.errors import AuthError, ConfigError, PubSubError
@@ -69,6 +69,8 @@ class PubSubPuller:
             raise PubSubError(f'{type(e).__name__}: {e}', transient=True) from e
         except RefreshError as e:
             raise AuthError(str(e)) from e
+        except TransportError as e:
+            raise PubSubError(f'Token refresh failed: {e}', transient=True) from e
 
     def pull(self, max_messages: int, timeout: float) -> list[PulledMessage]:
         """Pull up to ``max_messages``; returns [] when nothing arrives in time."""

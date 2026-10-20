@@ -5,11 +5,13 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from google.auth.exceptions import RefreshError, TransportError
 
 from jev_gmail_labeler import __version__, cli
 from jev_gmail_labeler import config as config_module
 from jev_gmail_labeler.criteria import EXAMPLE_CRITERIA, parse_criteria
 from jev_gmail_labeler.errors import AuthError, ConfigError, CriteriaError, GmailError
+from jev_gmail_labeler.google_api import auth
 from jev_gmail_labeler.models import PipelineResult, PipelineStatus
 
 
@@ -431,6 +433,11 @@ def test_config_error_exits_2(caplog):
             'Authorization failed: No token at x. Run `jev-gmail-labeler auth`',
         ),
         (AuthError('TypeSafe API key was rejected'), 3, 'TypeSafe API key was rejected'),
+        (
+            AuthError('Token refresh failed: offline', transient=True),
+            5,
+            'Authorization failed temporarily: Token refresh failed: offline',
+        ),
         (KeyboardInterrupt(), 130, ''),
         (GmailError('boom'), 1, 'Unexpected error'),
         (RuntimeError('kaboom'), 1, 'Unexpected error'),
@@ -442,6 +449,32 @@ def test_exit_codes(monkeypatch, caplog, exc, code, text):
     assert text in caplog.text
     if code == 3 and text.startswith('TypeSafe'):
         assert 'Authorization failed' not in caplog.text
+    if code == 5:
+        assert 'jev-gmail-labeler auth' not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ('exc', 'code'),
+    [
+        (TransportError('Temporary failure in name resolution'), 5),
+        (RefreshError('invalid_grant'), 3),
+    ],
+)
+def test_listen_token_refresh_failure_exit_code(monkeypatch, exc, code):
+    creds = MagicMock(valid=False, refresh_token='refresh-token')
+    creds.has_scopes.return_value = True
+    creds.refresh.side_effect = exc
+    credentials = MagicMock()
+    credentials.from_authorized_user_info.return_value = creds
+    monkeypatch.setattr(auth, 'Credentials', credentials)
+    argv = [
+        'listen',
+        '--topic',
+        'projects/p/topics/t',
+        '--subscription',
+        'projects/p/subscriptions/s',
+    ]
+    assert cli.main(argv) == code
 
 
 def test_logging_configured_twice(monkeypatch):

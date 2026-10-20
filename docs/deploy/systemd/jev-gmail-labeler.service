@@ -5,7 +5,11 @@ Documentation=https://github.com/1npo/jev-gmail-labeler
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/jev-gmail-labeler/env
+# User units cannot depend on network-online.target, so wait for DNS here.
+ExecStartPre=/bin/sh -c 'until getent hosts oauth2.googleapis.com >/dev/null; do sleep 3; done'
+TimeoutStartSec=infinity
 ExecStart=%h/.local/bin/jev-gmail-labeler listen
+# Exit 5 (temporary failure, e.g. network down) is restarted; 2 and 3 need a fix first.
 Restart=on-failure
 RestartSec=10
 RestartPreventExitStatus=2 3

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httplib2
-from google.auth.exceptions import RefreshError
+from google.auth.exceptions import RefreshError, TransportError
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -94,7 +94,7 @@ class GmailClient:
             raise GmailError(message, status=status, transient=transient) from e
         except RefreshError as e:
             raise AuthError(f'Google token refresh failed: {e}') from e
-        except (OSError, httplib2.HttpLib2Error) as e:
+        except (OSError, httplib2.HttpLib2Error, TransportError) as e:
             raise GmailError(
                 f'Gmail API {cost_key} network error: {type(e).__name__}: {e}',
                 transient=True,

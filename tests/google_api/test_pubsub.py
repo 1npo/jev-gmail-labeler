@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from google.api_core import exceptions as gexc
-from google.auth.exceptions import RefreshError
+from google.auth.exceptions import RefreshError, TransportError
 
 from jev_gmail_labeler.errors import AuthError, ConfigError, PubSubError
 from jev_gmail_labeler.google_api.pubsub import (
@@ -100,6 +100,13 @@ def test_pull_refresh_error(puller, client):
     client.pull.side_effect = RefreshError('revoked')
     with pytest.raises(AuthError):
         puller.pull(5, 1.0)
+
+
+def test_pull_refresh_transport_error_is_transient(puller, client):
+    client.pull.side_effect = TransportError('offline')
+    with pytest.raises(PubSubError) as e:
+        puller.pull(5, 1.0)
+    assert e.value.transient
 
 
 def test_ack_request(puller, client):

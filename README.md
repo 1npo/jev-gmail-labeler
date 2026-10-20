@@ -58,6 +58,8 @@ uv tool install git+https://github.com/1npo/jev-gmail-labeler.git
 5. [Try a dry run](docs/USER_GUIDE.md#8-run-it-manually): `jev-gmail-labeler label --count 20`.
 6. [Run it as a service](docs/USER_GUIDE.md#9-run-it-as-a-service) with systemd.
 
+> **Publish the OAuth app.** Set the consent screen's publishing status to **In production**, not **Testing** ([4.10](docs/USER_GUIDE.md#410-publish-the-app)). In Testing, Google expires the refresh token after 7 days, and the service stops until you run `jev-gmail-labeler auth` again.
+
 ## Usage
 
 ```
